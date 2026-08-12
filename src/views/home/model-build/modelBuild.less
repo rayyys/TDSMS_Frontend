@@ -1,0 +1,400 @@
+@import '@/styles/variables.less';
+
+.model-build-page {
+  // background-color: #f4f7fc;
+  min-height: calc(100vh - 60px);
+}
+
+// 页面标题区
+.page-header {
+  margin-bottom: 16px;
+
+  .page-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #303133;
+    margin-bottom: 8px;
+    margin-top: 0;
+  }
+
+  .page-desc {
+    font-size: 16px;
+    color: #909399;
+    margin: 0;
+  }
+}
+
+.model-build-container {
+  // padding: 20px;
+  // background: #ffffff;
+  border-radius: 8px 8px 0 0;
+  // box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  margin: 0 auto;
+
+  .section {
+    margin-bottom: 28px;
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #ebeef5;
+    border-radius: 8px;
+  }
+
+  // 编号化标题：左侧圆形序号 + 标题 + 红色必填星号
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #303133;
+    margin-bottom: 16px;
+
+    .section-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #004AA9;
+      color: #fff;
+      font-size: 13px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .required-mark {
+      color: #f56c6c;
+      font-size: 18px;
+      line-height: 1;
+      margin-left: 2px;
+    }
+  }
+
+  // 排产时间 / 算法求解时长配置
+  .time-settings-grid {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .setting-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+
+    &--narrow {
+      align-items: center;
+    }
+
+    .setting-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .setting-name {
+      font-size: 16px;
+      font-weight: 500;
+      color: #303133;
+      flex-shrink: 0;
+    }
+
+    .full-width-input {
+      width: 220px !important;
+      :deep(.el-input__wrapper) {
+        height: 2rem;
+      }
+
+      // 排产月份日期选择器内侧的前缀日历图标：置灰、缩小
+      :deep(.el-input__prefix .el-input__icon) {
+        font-size: 18px;
+        color: #909399;
+      }
+    }
+  }
+
+  // 通用规则说明文字
+  .rule-hint {
+    font-size: 14px;
+    color: #909399;
+    line-height: 1.6;
+    margin-top: 8px;
+  }
+
+  // ============== 2. 生产规则配置 ==============
+  .rules-block {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .rule-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    // padding: 14px 16px;
+    // background: #f7f9fc;
+    border-radius: 6px;
+
+    // 三列并排（清场时长配置）
+    &--triple {
+      flex-direction: row;
+      gap: 16px;
+      flex-wrap: wrap;
+
+      .rule-subitem {
+        flex: 1;
+        min-width: 220px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        // padding: 10px 12px;
+        background: #ffffff;
+        border-radius: 4px;
+        // border: 1px solid #ebeef5;
+      }
+
+      .rule-sublabel {
+        font-size: 14px;
+        color: #606266;
+        font-weight: 500;
+      }
+    }
+
+    // 班次换算（单行横向）
+    &--shift {
+      flex-direction: row;
+      align-items: center;
+      flex-wrap: wrap;
+
+      .rule-control {
+        flex: 0 0 auto;
+      }
+    }
+  }
+
+  .rule-label {
+    font-size: 15px;
+    font-weight: 500;
+    color: #303133;
+  }
+
+  .rule-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .rule-unit {
+    font-size: 14px;
+    color: #606266;
+    margin-left: 2px;
+  }
+
+  // 仅人员容量的“人”单位保留左侧竖线分隔
+  .capacity-control .rule-unit {
+    padding-left: 6px;
+    border-left: 1px solid #dcdfe6;
+  }
+
+  // 轻量步进按钮：仅保留上下三角图标，hover 时高亮，无按钮底框
+  :deep(.el-input-number.is-controls-right) {
+    --el-input-number-controls-width: 20px;
+    --el-input-number-offset: 1px;
+
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      background: transparent;
+      border: none;
+      color: #909399;
+      transition: color 0.2s;
+
+      &:hover {
+        color: #409eff;
+      }
+
+      &.is-disabled {
+        color: #c0c4cc;
+      }
+    }
+  }
+
+  .rule-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    // padding: 14px 16px;
+    // background: #f7f9fc;
+    border-radius: 6px;
+  }
+
+  .rule-group-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  // ============== 3. 人员容量配置 ==============
+  .capacity-block {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .capacity-group {
+    // padding: 14px 16px;
+    // background: #f7f9fc;
+    border-radius: 6px;
+  }
+
+  .capacity-group-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+    margin-bottom: 12px;
+  }
+
+  .capacity-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .capacity-item {
+    justify-content: flex-start;
+    align-items: center;
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    gap: 6px;
+    // padding: 10px 12px;
+    background: #ffffff;
+    border-radius: 4px;
+    // border: 1px solid #ebeef5;
+  }
+
+  .capacity-label {
+    font-size: 14px;
+    color: #606266;
+    font-weight: 500;
+  }
+
+  .capacity-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  // 输入框宽度以 rem 固定，随页面等比缩放，视觉尺寸在 Ctrl+滚轮缩放时保持稳定
+  .stable-input-number {
+    width: 5.56rem;
+    flex-shrink: 0;
+  }
+
+  // 生产规则配置区的输入框加宽到 500px（仅作用于第 2 区块）
+  .rules-block {
+    .stable-input-number {
+      width: 8rem;
+    }
+  }
+
+  .capacity-hint {
+    padding: 0 4px;
+  }
+}
+
+// 底部操作栏 - 粘性定位
+.action-bar {
+  position: sticky;
+  bottom: 10px;
+  margin: 0 -20px -5px -20px;
+  height: 80px;
+  padding: 0 40px;
+  background: #fff;
+  border-top: 1px solid #DDE8F5;
+  border-right: 1px solid #DDE8F5;
+  border-bottom: 1px solid #DDE8F5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.04);
+  z-index: 100;
+
+  .el-button {
+    height: 40px;
+    padding: 0 28px;
+    font-size: 16px;
+  }
+
+  .btn-prev {
+    color: #004AA9;
+    border-color: #dcdfe6;
+
+    &:hover {
+      color: #1c4b8e;
+      border-color: #004AA9;
+      background-color: #f4f7fc;
+    }
+  }
+
+  // 右侧操作按钮组：恢复默认参数 + 开始求解，紧邻排列
+  .action-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  // 恢复默认参数按钮：白底描边
+  .btn-reset {
+    color: #606266;
+    border-color: #dcdfe6;
+
+    &:hover:not(:disabled) {
+      color: #1c4b8e;
+      border-color: #004AA9;
+      background-color: #f4f7fc;
+    }
+
+    &:disabled {
+      color: #c0c4cc;
+      border-color: #e4e7ed;
+      background-color: #f5f7fa;
+    }
+  }
+
+  .btn-next {
+    background-color: #004AA9;
+    border-color: #004AA9;
+
+    &:hover {
+      background-color: #1c4b8e;
+      border-color: #1c4b8e;
+    }
+
+    &.btn-disabled {
+      background-color: #a0a0a0;
+      border-color: #a0a0a0;
+      cursor: not-allowed;
+      opacity: 0.65;
+
+      &:hover {
+        background-color: #a0a0a0;
+        border-color: #a0a0a0;
+      }
+    }
+  }
+}
+
+// 底部吸底占位盒：位于操作栏下方，10px 高，与操作栏同宽
+.action-bar-space {
+  position: sticky;
+  bottom: 0;
+  height: 10px;
+  margin: 0 -20px;
+  background: #fff;
+  z-index: 100;
+}

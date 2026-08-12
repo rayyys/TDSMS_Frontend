@@ -1,0 +1,72 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  font-family: 'Avenir', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 全局 CSS 变量 */
+:root {
+  --app-select-min-width: 10rem;
+}
+
+/* 消息提示样式：简约文字条风格（与设计稿统一） */
+.el-message {
+  border-radius: 4px;
+  box-shadow: none;
+  zoom: 1.5;
+}
+.el-message--error {
+  background: #fff5f5;
+  border: none;
+  color: #c53030;
+}
+.el-message--success {
+  background: #f0fff4;
+  border: none;
+  color: #276749;
+}
+.el-message--warning {
+  background: #fffbeb;
+  border: none;
+  color: #975a16;
+}
+.el-message--info {
+  background: #f6f8fa;
+  border: none;
+  color: #4a5568;
+}
+
+/* 全局 MessageBox 尺寸放大 */
+.el-message-box {
+  --el-messagebox-width: 720px;
+  --el-messagebox-title-font-size: 28px;
+  --el-messagebox-content-font-size: 16px;
+  --el-messagebox-close-font-size: 28px;
+  --el-messagebox-header-padding: 28px 32px 0;
+  --el-messagebox-content-padding: 32px;
+}
+
+/* MessageBox 左侧图标顶部对齐 */
+.el-message-box__container {
+  align-items: flex-start;
+}
+.el-message-box__status {
+  position: static;
+  transform: none;
+  margin-top: 4px;
+}

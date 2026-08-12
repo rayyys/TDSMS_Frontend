@@ -1,0 +1,573 @@
+@import '@/styles/variables.less';
+
+.model-solve-page {
+  margin: 0 auto;
+  // background-color: #f4f7fc;
+  min-height: calc(100vh - 60px);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  // 页面标题区
+  .page-header {
+    margin-bottom: 16px;
+
+    .page-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #303133;
+      margin: 0 0 8px 0;
+    }
+
+    .page-desc {
+      font-size: 16px;
+      color: #909399;
+      margin: 0;
+    }
+  }
+
+  // 主体上下布局
+  .solve-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  // 上：求解状态卡片（占满整行）
+  .solve-status {
+    display: flex;
+    min-width: 0;
+
+    .status-card {
+      flex: 1;
+      width: 100%;
+    }
+  }
+
+  // 下：左右布局（左日志 + 右参数概览）
+  .solve-bottom {
+    display: grid;
+    // 左日志栏收窄，右侧参数概览占满剩余宽度
+    grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
+    gap: 20px;
+    align-items: stretch;
+
+    .solve-bottom-left {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .solve-bottom-right {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+  }
+
+  // 通用白色卡片
+  .custom-card {
+    background: #fff;
+    // border-radius: 8px;
+    border: 1.8px solid #DDE8F5;
+    padding: 20px 24px;
+    // box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+
+    .card-header {
+      font-size: 18px;
+      font-weight: bold;
+      color: #303133;
+      // 用负外边距抵消卡片左右内边距，让分隔线横贯整个盒子（不受 card 内边距影响）
+      margin: 0 -24px 20px;
+      padding: 0 24px 12px;
+      border-bottom: 1.8px solid #e5ecf5;
+      // padding-left: 10px;
+      // border-left: 4px solid #004AA9;
+    }
+  }
+
+  // --- 求解状态卡片（水平布局：图标 + 文案 + 3 列信息 + 操作按钮） ---
+  .status-card {
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .status-info {
+      flex: 0 0 auto;
+      min-width: 280px;
+    }
+
+    .status-main {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .icon-wrapper {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-shrink: 0;
+      }
+
+      .pulse-icon,
+      .stopped-icon {
+        width: 32px;
+        height: 32px;
+        display: block;
+      }
+
+      .pulse-line {
+        fill: none;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .status-text-block {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .status-title {
+        font-size: 22px;
+        font-weight: bold;
+        line-height: 1.2;
+      }
+
+      .status-subtitle {
+        font-size: 14px;
+        color: #606266;
+        line-height: 1.4;
+      }
+
+      // 完成 / 默认（蓝）
+      &.st-done,
+      &.st-idle {
+        .icon-wrapper {
+          background: #e6f1fc;
+          color: #409eff;
+        }
+        .pulse-line {
+          stroke: #409eff;
+        }
+        .status-title {
+          color: #409eff;
+        }
+      }
+
+      // 运行中（橙）
+      &.st-running {
+        .icon-wrapper {
+          background: #fff2e8;
+          color: #f59a23;
+        }
+        .pulse-line {
+          stroke: #f59a23;
+        }
+        .status-title {
+          color: #f59a23;
+        }
+      }
+
+      // 已停止（红）
+      &.st-stopped {
+        .icon-wrapper {
+          background: #fde2e2;
+          color: #f45d5d;
+        }
+        .stopped-icon {
+          stroke: #f45d5d;
+        }
+        .status-title {
+          color: #f45d5d;
+        }
+      }
+    }
+
+    // 3 列时间信息网格
+    .status-time-grid {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      min-width: 320px;
+
+      .time-item {
+        text-align: center;
+        padding: 0 8px;
+        border-right: 1px dashed #ebeef5;
+
+        &:last-child {
+          border-right: none;
+        }
+      }
+
+      .time-label {
+        color: #909399;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      .time-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #303133;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        line-height: 1.2;
+
+        &.time-value--small {
+          font-size: 15px;
+          font-weight: 500;
+        }
+
+        .syncing-hint {
+          font-size: 14px;
+          font-weight: normal;
+          color: #909399;
+        }
+      }
+    }
+
+    // 右侧操作按钮组
+    .status-actions {
+      flex: 0 0 auto;
+      display: flex;
+      // flex-direction: column;
+      gap: 12px;
+      min-width: 140px;
+
+      .el-button {
+        width: 100%;
+        height: 40px;
+        font-size: 14px;
+        padding: 0 12px;
+
+        .btn-icon {
+          font-size: 16px;
+          margin-right: 4px;
+        }
+      }
+
+      .btn-stop {
+        background-color: #fff;
+        border-color: #dcdfe6;
+        color: #606266;
+
+        &:not(:disabled):hover {
+          background-color: #f4f7fc;
+          border-color: #b1b3b8;
+          color: #303133;
+        }
+
+        &:disabled {
+          background-color: #f5f7fa;
+          border-color: #e4e7ed;
+          color: #c0c4cc;
+        }
+      }
+
+      .btn-export {
+        background-color: #fff;
+        border-color: #27ae60;
+        color: #27ae60;
+
+        &:hover:not(.is-disabled) {
+          background-color: #e8f7ec;
+        }
+
+        &.is-disabled {
+          border-color: #dcdfe6;
+          color: #c0c4cc;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+
+  // --- 求解日志卡片 ---
+  .log-card {
+    flex: 1;
+
+    .log-list {
+      max-height: 320px;
+      min-height: 240px;
+      overflow-y: auto;
+      padding-right: 12px;
+
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: #dcdfe6;
+        border-radius: 3px;
+      }
+
+      .log-empty {
+        color: #909399;
+        text-align: center;
+        margin-top: 60px;
+        font-size: 14px;
+      }
+
+      .log-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #f5f7fa;
+        font-size: 14px;
+
+        &:last-child {
+          border-bottom: none;
+        }
+
+        .log-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #27ae60;
+          margin-right: 12px;
+          flex-shrink: 0;
+        }
+
+        .log-time {
+          color: #909399;
+          margin-right: 16px;
+          width: 70px;
+          flex-shrink: 0;
+        }
+
+        .log-msg {
+          color: #303133;
+          flex: 1;
+          min-width: 0;
+        }
+      }
+    }
+  }
+
+  // --- 右侧：参数配置概览 ---
+  .config-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+
+    .config-section {
+      margin-bottom: 20px;
+      border: 1px solid #ebeef5;
+      border-radius: 6px;
+      overflow: hidden;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .config-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      // background: #f7f9fc;
+      font-size: 15px;
+      font-weight: bold;
+      color: #303133;
+      border-bottom: 1px solid #ebeef5;
+
+      .section-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #004AA9;
+        color: #fff;
+        font-size: 13px;
+        font-weight: bold;
+        flex-shrink: 0;
+      }
+    }
+
+    .config-list {
+      padding: 8px 0;
+    }
+
+    .config-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      font-size: 14px;
+      line-height: 1.5;
+
+      &--column {
+        // flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+
+      .config-label {
+        color: #909399;
+        min-width: 110px;
+        flex-shrink: 0;
+      }
+
+      .config-value {
+        color: #303133;
+        font-weight: 500;
+        text-align: left;
+      }
+
+      &--column {
+        .config-value {
+          text-align: left;
+        }
+      }
+    }
+  }
+
+  // --- 底部信息提示（蓝色 info 风格） ---
+  .info-alert {
+    display: flex;
+    align-items: flex-start;
+    background-color: #ecf5ff;
+    border: 1px solid #d9ecff;
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin-top: 20px;
+    color: #409eff;
+    font-size: 14px;
+    line-height: 1.6;
+
+    .alert-icon {
+      color: #409eff;
+      font-size: 18px;
+      margin-right: 8px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .alert-content {
+      flex: 1;
+      color: #303133;
+    }
+  }
+}
+
+// 底部操作栏 - 粘性定位
+.action-bar {
+  position: sticky;
+  bottom: 10px;
+  margin: 0 -20px -5px -20px;
+  height: 80px;
+  padding: 0 40px;
+  background: #fff;
+  border-top: 1px solid #DDE8F5;
+  border-right: 1px solid #DDE8F5;
+  border-bottom: 1px solid #DDE8F5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.04);
+  z-index: 100;
+
+  .el-button {
+    height: 40px;
+    padding: 0 28px;
+    font-size: 16px;
+  }
+
+  .btn-prev {
+    color: #004AA9;
+    border-color: #dcdfe6;
+
+    &:hover {
+      color: #1c4b8e;
+      border-color: #004AA9;
+      background-color: #f4f7fc;
+    }
+  }
+
+  .btn-next {
+    background-color: #004AA9;
+    border-color: #004AA9;
+    color: #fff;
+
+    &:hover {
+      background-color: #1c4b8e;
+      border-color: #1c4b8e;
+    }
+  }
+}
+
+// 底部吸底占位盒：位于操作栏下方，10px 高
+// 需有实心背景色才能真正遮挡下层内容，否则透明盒看不到效果
+.action-bar-space {
+  position: sticky;
+  bottom: 0;
+  height: 10px;
+  // 与 action-bar 同宽：左右各向外扩 20px
+  margin: 0 -20px;
+  background: #fff;
+  z-index: 100;
+}
+
+// 心跳脉冲描线动画
+@keyframes pulse-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -100;
+  }
+}
+
+// 响应式适配 - 中等屏幕：下方左右两栏的右栏收窄
+@media (max-width: 1400px) {
+  .model-solve-page {
+    .solve-bottom {
+      grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+    }
+  }
+}
+
+@media (max-width: 1200px) {
+  .model-solve-page {
+    .solve-bottom {
+      grid-template-columns: 1fr;
+    }
+
+    .status-card .status-row {
+      flex-direction: column;
+      align-items: stretch;
+
+      .status-time-grid {
+        border-top: 1px dashed #ebeef5;
+        border-bottom: 1px dashed #ebeef5;
+        padding: 16px 0;
+      }
+
+      .status-actions {
+        flex-direction: row;
+        min-width: 0;
+
+        .el-button {
+          flex: 1;
+        }
+      }
+    }
+  }
+}

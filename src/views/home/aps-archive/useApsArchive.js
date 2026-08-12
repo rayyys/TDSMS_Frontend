@@ -1,0 +1,328 @@
+import { ref, computed, reactive } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
+
+/**
+ * 创建单个方案的默认状态
+ * 每个方案独立维护自己的数据、上传记录、选中项与搜索条件
+ */
+function createPlanState() {
+  return {
+    tableData: [],
+    uploadedFileName: '',
+    hasImported: false,
+    selectedRows: [],
+    searchQuery: '',
+    tableLoading: false,
+  }
+}
+
+/**
+ * APS 排产信息档案 - 页面逻辑组合式函数
+ * 支持多方案隔离：切换方案时自动保存/恢复各自的上传状态与表格数据
+ */
+export function useApsArchive() {
+  // ================== 方案管理 ==================
+  // 方案列表：首次进入为空，点击"新增方案"后追加
+  const planList = ref([])
+  const activePlanId = ref(null)
+
+  // 每个方案对应一个独立的状态对象（reactive），切换方案时互不干扰
+  const planStateMap = ref({})
+
+  // 确保当前激活方案已有状态对象，没有则初始化
+  function ensurePlanState(planId) {
+    if (!planStateMap.value[planId]) {
+      planStateMap.value[planId] = reactive(createPlanState())
+    }
+    return planStateMap.value[planId]
+  }
+
+  // 当前激活方案的状态（始终返回一个可用对象，避免模板空值判断）
+  const planState = computed(() => {
+    if (!activePlanId.value) return reactive(createPlanState())
+    return ensurePlanState(activePlanId.value)
+  })
+
+  // 过滤后的表格数据（按品种/包装规格搜索）
+  const filteredTableData = computed(() => {
+    const rows = planState.value.tableData
+    const keyword = (planState.value.searchQuery || '').trim()
+    if (!keyword) return rows
+    return rows.filter((row) => {
+      const product = String(row.product ?? '')
+      const packageSpec = String(row.packageSpec ?? '')
+      return product.includes(keyword) || packageSpec.includes(keyword)
+    })
+  })
+
+  // 下一个方案的序号
+  function nextPlanNo() {
+    return planList.value.length + 1
+  }
+
+  // 阿拉伯数字 → 中文数字（1 → 一）
+  function toChineseNum(n) {
+    const map = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+    if (n <= 10) return map[n]
+    return String(n)
+  }
+
+  // 点击"新增方案"：追加方案并设为激活
+  function onAddPlan() {
+    const newPlan = {
+      id: `plan-${Date.now()}`,
+      name: `方案${toChineseNum(nextPlanNo())}`,
+    }
+    planList.value.push(newPlan)
+    activePlanId.value = newPlan.id
+    ElMessage.success(`${newPlan.name}已创建`)
+  }
+
+  // 点击方案项：切换激活，状态由 planState 自动切换，无需手动重置
+  function onSelectPlan(planId) {
+    if (planId === activePlanId.value) return
+    activePlanId.value = planId
+  }
+
+  // 删除方案：同时清理该方案的状态缓存
+  async function onDeletePlan(plan) {
+    try {
+      await ElMessageBox.confirm(`确定删除「${plan.name}」吗？`, '删除方案', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      })
+      planList.value = planList.value.filter((p) => p.id !== plan.id)
+      delete planStateMap.value[plan.id]
+      if (activePlanId.value === plan.id) {
+        activePlanId.value = planList.value[0]?.id ?? null
+      }
+      ElMessage.success('已删除')
+    } catch {
+      /* 用户取消 */
+    }
+  }
+
+  // ================== 表格样式 ==================
+  // 表头样式：固定浅灰背景，加粗居中
+  function headerCellStyle() {
+    return {
+      background: '#eef1f6',
+      color: '#303133',
+      fontWeight: '600',
+      textAlign: 'center',
+      borderColor: '#dfe4ec',
+    }
+  }
+
+  // 单元格样式：行高统一，禁止换行溢出
+  function cellStyle() {
+    return {
+      color: '#2d3436',
+      textAlign: 'center',
+      borderColor: '#eaeef4',
+    }
+  }
+
+  // ================== Excel 上传与解析 ==================
+  const uploadDragOver = ref(false)
+  const fileInputRef = ref(null)
+
+  function triggerFileInput() {
+    fileInputRef.value?.click()
+  }
+
+  function onFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    handleSelectedFile(file)
+    // 重置 input value，允许重复选择同一文件
+    e.target.value = ''
+  }
+
+  function onFileDrop(e) {
+    uploadDragOver.value = false
+    const file = e.dataTransfer?.files?.[0]
+    if (!file) return
+    handleSelectedFile(file)
+  }
+
+  async function handleSelectedFile(file) {
+    if (!isExcelFile(file)) {
+      ElMessage.warning('仅支持 .xlsx / .xls 格式文件')
+      return
+    }
+    const state = planState.value
+    state.tableLoading = true
+    try {
+      const parsed = await parseExcelFile(file)
+      const rows = parseApsSheetToRows(parsed)
+      state.tableData = rows
+      state.uploadedFileName = file.name
+      state.hasImported = true
+      state.selectedRows = []
+      if (rows.length === 0) {
+        ElMessage.warning('Excel 中未解析到数据行，请检查模板')
+      } else {
+        ElMessage.success(`解析成功，共 ${rows.length} 条数据`)
+      }
+    } catch (err) {
+      ElMessage.error(err?.message || 'Excel 解析失败')
+      // 解析失败时保持未上传状态，避免显示空表格
+      state.hasImported = false
+    } finally {
+      state.tableLoading = false
+    }
+  }
+
+  /**
+   * 将 parseExcelFile 的结果转为表格行数据
+   * 模板首行为合并表头（品种/包装规格/配料/...），次行为字段表头
+   * 数据从第 3 行（数组下标 2）开始
+   */
+  function parseApsSheetToRows(parsed) {
+    const sheetName = Object.keys(parsed)[0]
+    if (!sheetName) return []
+    const { rows } = parsed[sheetName]
+    if (!Array.isArray(rows) || rows.length < 2) return []
+
+    // 数据从第 3 行（index 2）开始
+    return rows.slice(2).map((row) => ({
+      product: row[0] ?? '',
+      packageSpec: row[1] ?? '',
+      dispensingLine: row[2] ?? '',
+      batchQty: row[3] ?? '',
+      shiftOutput: row[4] ?? '',
+      dispensingStaff: row[5] ?? '',
+      pressMachine: row[6] ?? '',
+      pressOutput: row[7] ?? '',
+      pressStaff: row[8] ?? '',
+      coatingMachine: row[9] ?? '',
+      coatingOutput: row[10] ?? '',
+      coatingStaff: row[11] ?? '',
+      fillingEquip: row[12] ?? '',
+      fillingOutput: row[13] ?? '',
+      fillingStaff: row[14] ?? '',
+      packingEquip: row[15] ?? '',
+      packingOutput: row[16] ?? '',
+      manualOutput: row[17] ?? '',
+      packingStaff: row[18] ?? '',
+      cycleDays: row[19] ?? '',
+      isProcurement: row[20] ?? '',
+      annualSales: row[21] ?? '',
+    }))
+  }
+
+  // 下载模板占位
+  function onDownloadTemplate() {
+    ElMessage.info('模板下载功能待接入')
+  }
+
+  // ================== 工具栏操作 ==================
+  // 多选变化事件
+  function onSelectionChange(selection) {
+    planState.value.selectedRows = selection
+  }
+
+  // 取消选择
+  function onCancelSelection() {
+    planState.value.selectedRows = []
+    // 通知表格清空选中：由调用方通过 el-table ref 调用 clearSelection
+  }
+
+  // 批量删除
+  async function onBatchDelete() {
+    const selected = planState.value.selectedRows
+    if (!selected.length) {
+      ElMessage.warning('请先选择要删除的数据')
+      return
+    }
+    try {
+      await ElMessageBox.confirm(`确定删除选中的 ${selected.length} 条数据吗？`, '批量删除确认', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      })
+      const selectedSet = new Set(selected)
+      planState.value.tableData = planState.value.tableData.filter((row) => !selectedSet.has(row))
+      planState.value.selectedRows = []
+      ElMessage.success('已删除')
+    } catch {
+      /* 用户取消 */
+    }
+  }
+
+  // 重置搜索
+  function onResetSearch() {
+    planState.value.searchQuery = ''
+  }
+
+  // 新增空行
+  function onAddRow() {
+    planState.value.tableData.push({})
+    ElMessage.success('已新增数据行')
+  }
+
+  // 导出表格（占位）
+  function onExportTable() {
+    ElMessage.info('导出表格功能待接入')
+  }
+
+  // 保存（占位）
+  async function onSaveTable() {
+    ElMessage.success('保存成功')
+  }
+
+  // ================== 行操作 ==================
+  function onEditRow(row, index) {
+    // 演示：实际场景可打开编辑弹窗
+    ElMessage.info(`编辑第 ${index + 1} 行：${row.product || ''}`)
+  }
+
+  async function onDeleteRow(index) {
+    try {
+      await ElMessageBox.confirm('确定删除该条数据吗？', '删除确认', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      })
+      planState.value.tableData.splice(index, 1)
+      ElMessage.success('已删除')
+    } catch {
+      /* 用户取消 */
+    }
+  }
+
+  return {
+    // 方案管理
+    planList,
+    activePlanId,
+    planState,
+    filteredTableData,
+    onAddPlan,
+    onSelectPlan,
+    onDeletePlan,
+    // 表格样式
+    headerCellStyle,
+    cellStyle,
+    // Excel 上传与解析
+    uploadDragOver,
+    fileInputRef,
+    triggerFileInput,
+    onFileChange,
+    onFileDrop,
+    onDownloadTemplate,
+    // 工具栏操作
+    onSelectionChange,
+    onCancelSelection,
+    onBatchDelete,
+    onResetSearch,
+    onAddRow,
+    onExportTable,
+    onSaveTable,
+    // 行操作
+    onEditRow,
+    onDeleteRow,
+  }
+}

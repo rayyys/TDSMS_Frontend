@@ -1,0 +1,183 @@
+@import '@/styles/variables.less';
+
+.aps-archive-page {
+  // background-color: #f4f7fc;
+  min-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+
+  .page-header {
+    margin-bottom: 20px;
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #303133;
+      margin: 0 0 6px 0;
+    }
+    .page-desc {
+      font-size: 16px;
+      color: #909399;
+      margin: 0;
+    }
+  }
+
+  .archive-layout {
+    flex: 1;
+    display: flex;
+    gap: 20px;
+    min-height: 0;
+
+    // ===== 左侧：方案列表面板 =====
+    .archive-sidebar {
+      flex-shrink: 0;
+      width: 240px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+      // 底部预留空间，避免固定操作栏遮挡列表末尾内容
+      padding: 24px 0 76px;
+      box-sizing: border-box;
+      border: 1.6px solid #D8E2EF;
+
+      .plan-list {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow-y: auto;
+        min-height: 0;
+      }
+
+      .plan-list-item {
+        height: 60px;
+        padding: 0 12px 0 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        // border-radius: 4px;
+        color: @text-dark;
+        font-size: 15px;
+        transition: background 0.15s, color 0.15s;
+
+        .plan-list-name {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .plan-list-del {
+          font-size: 14px;
+          color: #c0c4cc;
+          opacity: 0;
+          transition: opacity 0.15s, color 0.15s;
+
+          &:hover {
+            color: #f56c6c;
+          }
+        }
+
+        &:hover:not(.active) {
+          background: @brand-primary-light;
+          .plan-list-del {
+            opacity: 1;
+          }
+        }
+
+        &.active {
+          background: @brand-primary-light;
+          color: @brand-primary;
+          font-weight: 600;
+          position: relative;
+          .plan-list-del {
+            opacity: 1;
+            color: @brand-primary;
+          }
+          &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0px;
+            bottom: 0px;
+            width: 3px;
+            background: @brand-primary;
+            border-radius: 2px;
+          }
+        }
+      }
+
+      .sidebar-footer {
+        // 与右侧数据面板底部操作栏同款：固定定位显示在最上层，便于随时操作
+        position: fixed;
+        left: 20px;
+        width: 240px;
+        bottom: 0;
+        z-index: 1000;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 20px;
+        background: #fff;
+        border-top: 1px solid #e4e7ed;
+        box-shadow: 0 -2px 12px 0 rgba(0, 0, 0, 0.08);
+
+        .btn-add-plan {
+          width: 100%;
+          height: 40px;
+          font-size: 15px;
+          color: @brand-primary;
+          border-color: @brand-primary;
+          background: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+
+          &:hover {
+            color: #fff;
+            background: @brand-primary;
+            border-color: @brand-primary;
+          }
+        }
+      }
+    }
+
+    // ===== 右侧主体：动态切换导入/数据面板 =====
+    .archive-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+
+      // 未上传：虚线拖拽上传区域（暂时仅作展示，不允许拖拽/点击上传）
+      .aps-upload-drop-zone {
+        flex: 1;
+        min-height: 0;
+        background: #fff;
+        border: 2px dashed #b6d1ff;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: default;
+        transition: border-color 0.2s, background 0.2s;
+      }
+    }
+  }
+
+  // 全局隐藏的文件输入
+  .aps-global-file-input {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    opacity: 0;
+    pointer-events: none;
+  }
+}

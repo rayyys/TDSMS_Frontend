@@ -1,0 +1,372 @@
+@import '@/styles/variables.less';
+
+.task-data-page {
+  // background-color: #f4f7fc; // 外部浅灰蓝背景
+  min-height: calc(100vh - 80px);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  // 页面标题区
+  .page-header {
+    margin-bottom: 16px;
+
+    .page-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #303133;
+      margin-bottom: 8px;
+      margin-top: 0;
+    }
+
+    .page-desc {
+      font-size: 16px;
+      color: #909399;
+      margin: 0;
+    }
+  }
+
+  // 主白底卡片（无外层 padding：表格独立铺满整宽，分页/底部按钮区各自补内边距）
+  .main-card {
+    background: #fff;
+    // border-radius: 8px;
+    border: 1px solid #dce5f0;
+    // padding: 20px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  // ============ 筛选区（独立卡片，与表格卡片间隔 10px） ============
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    background: #f9f9fb;
+    border: 1px solid #e3eaf4;
+    padding: 16px 20px;
+    // box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+
+    .filter-fields {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .filter-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .filter-label {
+      font-size: 14px;
+      color: #303133;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .filter-select {
+      width: 160px;
+      :deep(.el-input__wrapper) {
+        height: 32px;
+        border-radius: 4px;
+      }
+    }
+
+    // 部门多选框：需要更宽以容纳多个已选标签
+    .filter-select--dept {
+      width: 240px;
+    }
+
+    .btn-filter,
+    .btn-reset {
+      height: 32px;
+      padding: 0 18px;
+      font-size: 14px;
+      border-radius: 4px;
+    }
+
+    .btn-filter {
+      background-color: #004AA9;
+      border-color: #004AA9;
+
+      &:hover {
+        background-color: #1c4b8e;
+        border-color: #1c4b8e;
+      }
+    }
+
+    .btn-reset {
+      color: #606266;
+      border-color: #dcdfe6;
+      background: #fff;
+
+      &:hover {
+        color: #004AA9;
+        border-color: #004AA9;
+        background-color: #f4f7fc;
+      }
+    }
+
+    .filter-search {
+      flex: 0 0 280px;
+
+      .search-input {
+        :deep(.el-input__wrapper) {
+          height: 32px;
+          border-radius: 4px;
+        }
+        :deep(.el-input__suffix) {
+          .el-input__clear {
+            font-size: 16px;
+            color: #606266;
+            &:hover {
+              color: #303133;
+            }
+          }
+        }
+        .search-icon {
+          font-size: 16px;
+          color: #606266;
+          cursor: pointer;
+          &:hover {
+            color: #004AA9;
+          }
+        }
+      }
+    }
+  }
+
+  // ============ 表格区 ============
+  // 需求：表格始终固定展示 10 行，容器高度恒定
+  // 高度计算：表头 ~48px + 行高 48px × 10 行 = 528px；额外预留 padding/border
+  // 缩放比变化时：列宽 / 行高 / 字号由 AdaptiveTableContainer 的 densityClass + slot 样式动态调整
+  .table-wrap {
+    display: flex;
+    flex-direction: column;
+    // 高度与 10 行表格内容保持一致，避免因固定 min-height 偏大而在底部产生多余空白。
+    // 行数固定为 10 行（不足由占位行补齐），故容器在固定缩放比下高度恒定。
+    width: 100%;
+    // 强制表格容器出现横向滚动条
+    overflow-x: auto;
+    // 不限制纵向 overflow：缩放比放大时行高增大，容器需要纵向扩展以容纳全部 10 行
+    overflow-y: visible;
+
+    // 自定义横向滚动条样式（更明显的视觉反馈）
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: #f5f7fa;
+      border-radius: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #c6ccd6;
+      border-radius: 4px;
+      &:hover {
+        background: #909399;
+      }
+    }
+
+    // 适配 AdaptiveTableContainer：填充容器宽度，允许内部表格溢出以触发横向滚动
+    :deep(.adaptive-table-container) {
+      width: 100%;
+      overflow: visible;
+    }
+
+    .custom-table {
+      // outline 替代 border，避免 1px 边框导致 el-table 高度溢出触发滚动条
+      outline: 1px solid #ebeef5;
+      outline-offset: -1px;
+      border-radius: 4px;
+      // 配合 :fit="false"：让列宽按设定值渲染，触发横向滚动
+      // 列宽由 AdaptiveTableContainer 的 getColWidth 动态计算，此处不写死 min-width
+
+      :deep(.el-table__header-wrapper th) {
+        // 字号 / padding / line-height 由 AdaptiveTableContainer.headerStyle 动态注入
+        // 仅补充原 design 系统未覆盖的视觉细节
+        color: #303133;
+      }
+
+      :deep(.el-table__cell) {
+        font-size: 14px;
+        color: #303133;
+        // 行高 / padding 由 AdaptiveTableContainer.bodyStyle 动态注入（内联样式）
+        // 此处用 !important 覆盖，统一加大行高（上下 padding 14 + line-height 22）
+        padding: 10px 10px !important;
+        line-height: 15px !important;
+      }
+
+      // 单元格内文字不换行，显示省略号
+      :deep(.el-table__cell .cell) {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      .cell-text {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      // 占位行：保留行高，隐藏所有文本（与普通行视觉一致但无内容）
+      :deep(.row-placeholder) {
+        .cell-text,
+        .cell-placeholder {
+          visibility: hidden;
+        }
+        td {
+          background: transparent !important;
+          cursor: default;
+        }
+      }
+
+      .cell-placeholder {
+        display: block;
+        color: transparent;
+      }
+
+      // 修复 el-tooltip 与 el-table 自带宽度计算的冲突
+      :deep(.el-table__cell .cell.el-tooltip) {
+        width: 100% !important;
+      }
+
+      // 移除默认底部 1px 亮线
+      :deep(.el::before) {
+        display: none;
+      }
+    }
+  }
+
+  // ============ 分页区 ============
+  // 布局：左下角显示总条数，右侧放置分页按钮
+  .pagination-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding: 0 20px 10px 20px;
+    gap: 12px;
+
+    .total-count {
+      font-size: 16px;
+      color: #606266;
+      margin-right: 4px;
+    }
+
+    // 方形带边框分页按钮（对应原型图样式）
+    :deep(.el-pagination button),
+    :deep(.el-pagination .el-pager li) {
+      border: 1px solid #dcdfe6;
+      background: #fff;
+      border-radius: 4px;
+      min-width: 32px;
+      height: 32px;
+      line-height: 30px;
+      font-weight: normal;
+      color: #606266;
+      margin: 0 4px;
+
+      &.is-active {
+        color: #fff;
+        background-color: #004AA9;
+        border-color: #004AA9;
+      }
+
+      &:hover {
+        color: #004AA9;
+        border-color: #004AA9;
+      }
+
+      &.is-active:hover {
+        color: #fff;
+        background-color: #1c4b8e;
+        border-color: #1c4b8e;
+      }
+    }
+
+    :deep(.el-pagination .el-pager) {
+      gap: 0;
+    }
+
+    :deep(.el-pagination) {
+      gap: 4px;
+    }
+  }
+
+}
+
+// ============ 底部操作栏 - 粘性定位（与 model-build 页面完全一致） ============
+.action-bar {
+  position: sticky;
+  bottom: 10px;
+  margin: 0 -20px -5px -20px;
+  height: 80px;
+  padding: 0 40px;
+  background: #fff;
+  border-top: 1px solid #DDE8F5;
+  border-right: 1px solid #DDE8F5;
+  border-bottom: 1px solid #DDE8F5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.04);
+  z-index: 100;
+
+  .el-button {
+    height: 40px;
+    padding: 0 28px;
+    font-size: 16px;
+  }
+
+  .btn-prev {
+    color: #004AA9;
+    border-color: #dcdfe6;
+
+    &:hover {
+      color: #1c4b8e;
+      border-color: #004AA9;
+      background-color: #f4f7fc;
+    }
+
+    &:disabled {
+      color: #c0c4cc;
+      border-color: #e4e7ed;
+      background-color: #f5f7fa;
+    }
+  }
+
+  // 右侧操作按钮组：紧邻排列
+  .action-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn-next {
+    background-color: #004AA9;
+    border-color: #004AA9;
+
+    &:hover {
+      background-color: #1c4b8e;
+      border-color: #1c4b8e;
+    }
+  }
+}
+
+// 底部吸底占位盒：位于操作栏下方，10px 高，与操作栏同宽，防止内容被遮挡
+.action-bar-space {
+  position: sticky;
+  bottom: 0;
+  height: 10px;
+  margin: 0 -20px;
+  background: #fff;
+  z-index: 100;
+}
