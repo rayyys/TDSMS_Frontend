@@ -49,13 +49,19 @@
     </div>
 
     <!-- 数据表格 -->
-    <div v-loading="planState.tableLoading" class="aps-data-table-wrap" element-loading-text="正在解析Excel...">
+    <div
+      v-loading="planState.tableLoading"
+      ref="wrapRef"
+      class="aps-data-table-wrap"
+      element-loading-text="正在解析Excel..."
+    >
       <el-table
         ref="tableRef"
         :data="filteredTableData"
         border
         stripe
         class="aps-data-table"
+        :row-class-name="rowClassName"
         :header-cell-style="headerCellStyle"
         :cell-style="cellStyle"
         @selection-change="onSelectionChange"
@@ -70,7 +76,17 @@
           min-width="120"
           :resizable="true"
           align="center"
-        />
+        >
+          <template #default="scope">
+            <el-input
+              v-if="isRowEditable(scope.row)"
+              v-model="scope.row.product"
+              class="aps-editable-cell"
+              placeholder=""
+            />
+            <span v-else class="aps-cell-text">{{ scope.row.product || '—' }}</span>
+          </template>
+        </el-table-column>
 
         <!-- 包装规格 -->
         <el-table-column
@@ -79,8 +95,17 @@
           min-width="180"
           :resizable="true"
           align="center"
-          show-overflow-tooltip
-        />
+        >
+          <template #default="scope">
+            <el-input
+              v-if="isRowEditable(scope.row)"
+              v-model="scope.row.packageSpec"
+              class="aps-editable-cell"
+              placeholder=""
+            />
+            <span v-else class="aps-cell-text">{{ scope.row.packageSpec || '—' }}</span>
+          </template>
+        </el-table-column>
 
         <!-- 配料（合并 4 列子表头） -->
         <el-table-column label="配料" align="center">
@@ -90,28 +115,68 @@
             min-width="100"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.dispensingLine"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.dispensingLine || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="batchQty"
             label="批量(万片/粒)"
             min-width="110"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.batchQty"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.batchQty || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="shiftOutput"
             label="试产量(万片)"
             min-width="110"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.shiftOutput"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.shiftOutput || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="dispensingStaff"
             label="用人"
             min-width="70"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.dispensingStaff"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.dispensingStaff || '—' }}</span>
+            </template>
+          </el-table-column>
         </el-table-column>
 
         <!-- 压片（合并 3 列子表头） -->
@@ -122,21 +187,51 @@
             min-width="100"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.pressMachine"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.pressMachine || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="pressOutput"
             label="班产量"
             min-width="90"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.pressOutput"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.pressOutput || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="pressStaff"
             label="用人"
             min-width="70"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.pressStaff"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.pressStaff || '—' }}</span>
+            </template>
+          </el-table-column>
         </el-table-column>
 
         <!-- 包衣（合并 3 列子表头） -->
@@ -147,21 +242,51 @@
             min-width="90"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.coatingMachine"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.coatingMachine || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="coatingOutput"
             label="班产量"
             min-width="90"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.coatingOutput"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.coatingOutput || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="coatingStaff"
             label="用人"
             min-width="70"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.coatingStaff"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.coatingStaff || '—' }}</span>
+            </template>
+          </el-table-column>
         </el-table-column>
 
         <!-- 分装/铝塑（合并 3 列子表头） -->
@@ -172,21 +297,51 @@
             min-width="100"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.fillingEquip"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.fillingEquip || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="fillingOutput"
             label="班产量(万片)"
             min-width="110"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.fillingOutput"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.fillingOutput || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="fillingStaff"
             label="用人"
             min-width="70"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.fillingStaff"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.fillingStaff || '—' }}</span>
+            </template>
+          </el-table-column>
         </el-table-column>
 
         <!-- 包装（合并 4 列子表头） -->
@@ -197,28 +352,68 @@
             min-width="100"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.packingEquip"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.packingEquip || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="packingOutput"
             label="班产量(万片)"
             min-width="110"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.packingOutput"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.packingOutput || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="manualOutput"
             label="手工包装(1人产量)"
             min-width="150"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.manualOutput"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.manualOutput || '—' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="packingStaff"
             label="用人"
             min-width="70"
             :resizable="true"
             align="center"
-          />
+          >
+            <template #default="scope">
+              <el-input
+                v-if="isRowEditable(scope.row)"
+                v-model="scope.row.packingStaff"
+                class="aps-editable-cell"
+                placeholder=""
+              />
+              <span v-else class="aps-cell-text">{{ scope.row.packingStaff || '—' }}</span>
+            </template>
+          </el-table-column>
         </el-table-column>
 
         <!-- 生产周期/天 -->
@@ -228,7 +423,17 @@
           min-width="110"
           :resizable="true"
           align="center"
-        />
+        >
+          <template #default="scope">
+            <el-input
+              v-if="isRowEditable(scope.row)"
+              v-model="scope.row.cycleDays"
+              class="aps-editable-cell"
+              placeholder=""
+            />
+            <span v-else class="aps-cell-text">{{ scope.row.cycleDays || '—' }}</span>
+          </template>
+        </el-table-column>
 
         <!-- 是否集采品种 -->
         <el-table-column
@@ -237,7 +442,17 @@
           min-width="110"
           :resizable="true"
           align="center"
-        />
+        >
+          <template #default="scope">
+            <el-input
+              v-if="isRowEditable(scope.row)"
+              v-model="scope.row.isProcurement"
+              class="aps-editable-cell"
+              placeholder=""
+            />
+            <span v-else class="aps-cell-text">{{ scope.row.isProcurement || '—' }}</span>
+          </template>
+        </el-table-column>
 
         <!-- 年销量/万 -->
         <el-table-column
@@ -246,7 +461,17 @@
           min-width="100"
           :resizable="true"
           align="center"
-        />
+        >
+          <template #default="scope">
+            <el-input
+              v-if="isRowEditable(scope.row)"
+              v-model="scope.row.annualSales"
+              class="aps-editable-cell"
+              placeholder=""
+            />
+            <span v-else class="aps-cell-text">{{ scope.row.annualSales || '—' }}</span>
+          </template>
+        </el-table-column>
 
         <!-- 操作列 -->
         <el-table-column label="操作" width="100" :resizable="false" align="center" fixed="right">
@@ -256,7 +481,7 @@
                 link
                 class="row-action-btn row-action-edit"
                 :icon="Edit"
-                @click="onEditRow(scope.row, scope.$index)"
+                @click="onEditRow(scope.row)"
               />
               <el-button
                 link
@@ -284,7 +509,7 @@
       </el-button>
       <div class="aps-footer-right">
         <el-button class="aps-btn-export" plain @click="onExportTable">导出表格</el-button>
-        <el-button class="aps-btn-save" type="primary" @click="onSaveTable">保存</el-button>
+        <el-button class="aps-btn-save" type="primary" :loading="planState.saving" @click="onSaveTable">保存</el-button>
       </div>
     </div>
   </div>
@@ -327,9 +552,20 @@ const emit = defineEmits([
 ])
 
 const tableRef = ref(null)
+const wrapRef = ref(null)
 const hscrollRef = ref(null)
 const trackRef = ref(null)
 const thumbRef = ref(null)
+
+// 判断某行是否为当前可编辑行（同时仅一行可编辑，失焦不清空）
+function isRowEditable(row) {
+  return row === props.planState.editingRow
+}
+
+// 可编辑行应用特殊 class，用于深蓝色外边框高亮标识
+function rowClassName({ row }) {
+  return isRowEditable(row) ? 'aps-editing-row' : ''
+}
 
 // 表格横向滚动容器（el-table 内部负责横向滚动的 scrollbar wrap）
 let tableScrollWrap = null
@@ -471,6 +707,22 @@ watch(
   { immediate: true }
 )
 
+// 保存排序后，滚动定位到新增行
+watch(
+  () => props.planState.scrollToRow,
+  (target) => {
+    if (!target) return
+    nextTick(() => {
+      tableRef.value?.doLayout?.()
+      const index = props.filteredTableData.indexOf(target)
+      scrollToRowByIndex(index)
+      // 定位完成后清除标记，避免重复触发
+      props.planState.scrollToRow = null
+    })
+  },
+  { immediate: false }
+)
+
 function onSelectionChange(selection) {
   emit('selection-change', selection)
 }
@@ -486,6 +738,50 @@ function onResetSearch() {
 
 function onAddRow() {
   emit('add-row')
+  // 新增数据行后，自动滚动到底部，使最新添加的行立即可见
+  // el-table 内部渲染是异步的，需延迟等待新行渲染完成后再读取 scrollHeight
+  nextTick(() => {
+    tableRef.value?.doLayout?.()
+  })
+  setTimeout(() => {
+    tableRef.value?.doLayout?.()
+    scrollToLastRow()
+    focusNewRowFirstCell()
+  }, 100)
+}
+
+// 聚焦新增行第一个可编辑单元格，使其立即可输入
+function focusNewRowFirstCell() {
+  const tableEl = tableRef.value?.$el
+  if (!tableEl) return
+  const rows = tableEl.querySelectorAll('.el-table__body-wrapper tbody tr')
+  const lastRow = rows[rows.length - 1]
+  const firstInput = lastRow?.querySelector('.aps-editable-cell input')
+  firstInput?.focus()
+}
+
+// 遍历祖先元素，找到所有竖向可滚动容器并平滑滚动到底部
+function scrollToLastRow() {
+  const tableEl = tableRef.value?.$el
+  if (!tableEl) return
+  let node = tableEl.parentElement
+  while (node && node !== document.documentElement) {
+    const overflowY = getComputedStyle(node).overflowY
+    // 仅滚动真正有溢出内容的容器（scrollHeight > clientHeight）
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+    }
+    node = node.parentElement
+  }
+}
+
+// 将指定下标的行滚动到可视区域（避开底部固定操作栏），用于排序后定位新增行
+function scrollToRowByIndex(index) {
+  const tableEl = tableRef.value?.$el
+  if (!tableEl || index < 0) return
+  const rows = tableEl.querySelectorAll('.el-table__body-wrapper tbody tr')
+  const target = rows[index]
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'end' })
 }
 
 function onExportTable() {
@@ -610,7 +906,34 @@ function onClickImport() {
     // 与左侧新增方案按钮保持一致的高度与文字大小
     :deep(.el-button) {
       height: 40px;
-      font-size: 15px;
+      padding: 0 28px;
+      font-size: 16px;
+    }
+
+    // 导出表格：白底描边（对齐 model-build 的“恢复默认参数”按钮样式）
+    .aps-btn-export {
+      color: #606266;
+      border-color: #dcdfe6;
+      background-color: #fff;
+
+      &:hover:not(:disabled) {
+        color: #1c4b8e;
+        border-color: #004aa9;
+        background-color: #f4f7fc;
+      }
+    }
+
+    // 保存：实心品牌蓝（对齐 model-build 的“开始求解”按钮样式）
+    .aps-btn-save {
+      background-color: #004aa9;
+      border-color: #004aa9;
+      color: #fff;
+
+      &:hover {
+        background-color: #1c4b8e;
+        border-color: #1c4b8e;
+        color: #fff;
+      }
     }
   }
 
@@ -666,7 +989,66 @@ function onClickImport() {
   }
 
   :deep(.el-table__cell) {
-    padding: 10px 0;
+    padding: 4px 0;
+  }
+
+  // scrollIntoView 时为底部固定操作栏预留空间，避免定位的行被遮挡
+  :deep(.el-table__body-wrapper tbody tr) {
+    scroll-margin-bottom: 80px;
+  }
+
+  // 可编辑单元格：无边框、居中、聚焦时高亮，视觉上与普通单元格一致
+  :deep(.aps-editable-cell) {
+    width: 100%;
+
+    .el-input__wrapper {
+      box-shadow: none !important;
+      background: transparent;
+      padding: 0 6px;
+    }
+
+    .el-input__inner {
+      text-align: center;
+      height: 32px;
+      line-height: 32px;
+      color: #2d3436;
+    }
+
+    // 聚焦时仅保留浅色底，不再显示单元格级的小边框（由整行深蓝外边框标识编辑态）
+    .el-input__wrapper.is-focus {
+      background: #f5f9ff;
+    }
+  }
+
+  // 非可编辑行的只读文本：与输入框同等高度、居中显示
+  .aps-cell-text {
+    display: block;
+    height: 32px;
+    line-height: 32px;
+    text-align: center;
+    color: #2d3436;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // ===== 可编辑行：整行外边框高亮为深蓝色，清晰标识编辑状态 =====
+  :deep(tbody tr.aps-editing-row) td.el-table__cell {
+    // 上下外边框：横跨整行（含固定列），保证行上下被蓝色框线包围
+    border-top: 1px solid #0066cc !important;
+    border-bottom: 1px solid #0066cc !important;
+  }
+
+  // 左侧外边框（多选列，固定左列）：抬高层级压过表格左侧灰色外框线（border-left-patch，z-index=3），再以内阴影绘制蓝色竖线
+  :deep(tbody tr.aps-editing-row) td.el-table-fixed-column--left {
+    box-shadow: inset 1px 0 0 0 #0066cc !important;
+    z-index: 4;
+  }
+
+  // 右侧外边框（操作列，固定右列）：抬高层级压过表格右侧灰色外框线，再以内阴影绘制蓝色竖线
+  :deep(tbody tr.aps-editing-row) td.el-table-fixed-column--right {
+    box-shadow: inset -1px 0 0 0 #0066cc !important;
+    z-index: 4;
   }
 
   // 双行表头效果：强制子表头也带上底色

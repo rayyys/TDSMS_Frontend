@@ -52,6 +52,7 @@ function onAddPlan() {
 @import '@/styles/variables.less';
 
 .aps-no-plan-empty {
+  // 撑满父容器 archive-main 的剩余高度（页面 min-height 已校准，不会产生多余滚动条）
   flex: 1;
   min-height: 0;
   background: #fff;

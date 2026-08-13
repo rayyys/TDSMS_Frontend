@@ -2,7 +2,8 @@
 
 .aps-archive-page {
   // background-color: #f4f7fc;
-  min-height: calc(100vh - 100px);
+  // 独立页可用高度 = 100vh - 顶部导航 80px - 上下内边距 20px*2，避免内容溢出产生多余滚动条
+  min-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
 

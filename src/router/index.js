@@ -35,12 +35,12 @@ const routes = [
         name: 'ModelSolve',
         component: () => import('@/views/home/model-solve/ModelSolve.vue'),
       },
-      {
-        path: '/account',
-        name: 'AccountManagement',
-        component: () => import('@/views/home/account-management/AccountManagement.vue'),
-        meta: { standalone: true },
-      },
+      // {
+      //   path: '/account',
+      //   name: 'AccountManagement',
+      //   component: () => import('@/views/home/account-management/AccountManagement.vue'),
+      //   meta: { standalone: true },
+      // },
       {
         // APS 排产信息档案：顶部 Tab 入口，目标独立于工作流流程
         path: '/aps-archive',

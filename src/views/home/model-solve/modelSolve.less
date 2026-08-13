@@ -78,9 +78,8 @@
       font-weight: bold;
       color: #303133;
       // 用负外边距抵消卡片左右内边距，让分隔线横贯整个盒子（不受 card 内边距影响）
-      margin: 0 -24px 20px;
-      padding: 0 24px 12px;
-      border-bottom: 1.8px solid #e5ecf5;
+      margin: 0 -24px 15px;
+      padding: 0 24px 15px;
       // padding-left: 10px;
       // border-left: 4px solid #004AA9;
     }
@@ -88,6 +87,11 @@
 
   // --- 求解状态卡片（水平布局：图标 + 文案 + 3 列信息 + 操作按钮） ---
   .status-card {
+    // 仅求解状态标题保留下边框
+    .card-header {
+      border-bottom: 1.8px solid #e5ecf5;
+    }
+
     .status-row {
       display: flex;
       align-items: center;
@@ -157,8 +161,22 @@
         .pulse-line {
           stroke: #409eff;
         }
-        .status-title {
-          color: #409eff;
+      }
+
+      // 已完成（#1769E8 底色 + 白色图案）
+      &.st-done {
+        .icon-wrapper {
+          width: 52px;
+          height: 52px;
+          background: #1769E8;
+          color: #fff;
+        }
+        .pulse-icon {
+          width: 26px;
+          height: 26px;
+        }
+        .pulse-line {
+          stroke: #fff;
         }
       }
 
@@ -171,9 +189,6 @@
         .pulse-line {
           stroke: #f59a23;
         }
-        .status-title {
-          color: #f59a23;
-        }
       }
 
       // 已停止（红）
@@ -184,9 +199,6 @@
         }
         .stopped-icon {
           stroke: #f45d5d;
-        }
-        .status-title {
-          color: #f45d5d;
         }
       }
     }
@@ -298,6 +310,13 @@
   // --- 求解日志卡片 ---
   .log-card {
     flex: 1;
+    border-radius: 8px;
+
+    // 日志标题下外边距比求解状态标题少 5px
+    .card-header {
+      margin-bottom: 5px;
+      padding-bottom: 7px;
+    }
 
     .log-list {
       max-height: 320px;
@@ -361,10 +380,17 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    border-radius: 8px;
+
+    // 概览标题下外边距比求解状态标题少 5px
+    .card-header {
+      margin-bottom: 5px;
+      padding-bottom: 7px;
+    }
 
     .config-section {
-      margin-bottom: 20px;
-      border: 1px solid #ebeef5;
+      margin-bottom: 10px;
+      border: 1.8px solid #E1E8F0;
       border-radius: 6px;
       overflow: hidden;
 
@@ -382,7 +408,7 @@
       font-size: 15px;
       font-weight: bold;
       color: #303133;
-      border-bottom: 1px solid #ebeef5;
+      // border-bottom: 1px solid #ebeef5;
 
       .section-num {
         display: inline-flex;
@@ -444,7 +470,8 @@
     border: 1px solid #d9ecff;
     border-radius: 8px;
     padding: 14px 20px;
-    margin-top: 20px;
+    margin-top: 10px;
+    margin-bottom: 20px;
     color: #409eff;
     font-size: 14px;
     line-height: 1.6;
@@ -515,11 +542,11 @@
 .action-bar-space {
   position: sticky;
   bottom: 0;
-  height: 10px;
+  height: 12px;
   // 与 action-bar 同宽：左右各向外扩 20px
   margin: 0 -20px;
   background: #fff;
-  z-index: 100;
+  z-index: 50;
 }
 
 // 心跳脉冲描线动画

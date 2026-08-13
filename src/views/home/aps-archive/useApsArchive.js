@@ -1,6 +1,7 @@
 import { ref, computed, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
+import { saveApsArchive } from '@/api/scheduling'
 
 /**
  * 创建单个方案的默认状态
@@ -14,6 +15,14 @@ function createPlanState() {
     selectedRows: [],
     searchQuery: '',
     tableLoading: false,
+    // 保存过程中的加载态
+    saving: false,
+    // 最近一次「新增数据行」所在下标，用于保存时定位该行
+    newRowIndex: null,
+    // 排序后需要滚动定位到的新增行对象
+    scrollToRow: null,
+    // 当前处于可编辑状态的行（同时仅一行，null 表示无）
+    editingRow: null,
   }
 }
 
@@ -245,8 +254,13 @@ export function useApsArchive() {
         cancelButtonText: '取消',
       })
       const selectedSet = new Set(selected)
-      planState.value.tableData = planState.value.tableData.filter((row) => !selectedSet.has(row))
-      planState.value.selectedRows = []
+      const state = planState.value
+      state.tableData = state.tableData.filter((row) => !selectedSet.has(row))
+      state.selectedRows = []
+      // 若被删行正是可编辑行，则清空可编辑状态
+      if (state.editingRow && !state.tableData.includes(state.editingRow)) {
+        state.editingRow = null
+      }
       ElMessage.success('已删除')
     } catch {
       /* 用户取消 */
@@ -260,7 +274,13 @@ export function useApsArchive() {
 
   // 新增空行
   function onAddRow() {
-    planState.value.tableData.push({})
+    const state = planState.value
+    const newRow = {}
+    state.tableData.push(newRow)
+    // 记录新增行下标，供保存时定位该行进行品种校验
+    state.newRowIndex = state.tableData.length - 1
+    // 新增行即刻进入可编辑状态（替换原可编辑行，保证仅一行）
+    state.editingRow = newRow
     ElMessage.success('已新增数据行')
   }
 
@@ -269,15 +289,73 @@ export function useApsArchive() {
     ElMessage.info('导出表格功能待接入')
   }
 
-  // 保存（占位）
+  // 保存：先交由服务端做品种唯一性校验，再按返回结果处理数据与滚动定位
   async function onSaveTable() {
-    ElMessage.success('保存成功')
+    const state = planState.value
+    const rows = state.tableData
+    if (!rows.length) {
+      ElMessage.warning('暂无可保存的数据')
+      return
+    }
+    // 情况二（品种重复）时会触发页面刷新式排序，保存期间禁止重复提交
+    if (state.saving) return
+    state.saving = true
+
+    const loadingMsg = ElMessage({
+      message: '正在保存并校验品种唯一性...',
+      type: 'info',
+      duration: 0,
+    })
+
+    try {
+      const res = await saveApsArchive({
+        planId: activePlanId.value,
+        rows,
+        newRowIndex: state.newRowIndex ?? rows.length - 1,
+      })
+      const result = res?.data
+      if (result?.success === false) {
+        ElMessage.error(result.message || '保存失败')
+        return
+      }
+      const data = result?.data || result || {}
+      const savedRows = data.rows || rows
+
+      // 应用服务端返回的（可能已排序）数据
+      state.tableData = savedRows
+      state.selectedRows = []
+      state.newRowIndex = null
+      // 保存后行对象被服务端替换，清空可编辑状态（用户可再次点编辑进入）
+      state.editingRow = null
+
+      if (data.duplicate) {
+        // 情况二：品种重复，已按品种分组排序，滚动定位到新增行
+        // 注意：服务端返回的是序列化后的新对象，需用返回的 newRowIndex 定位该行
+        ElMessage.success('保存成功，检测到品种重复，已按品种分组排序')
+        state.scrollToRow = savedRows[data.newRowIndex]
+      } else {
+        // 情况一：品种不重复，保持原位置，即时生效
+        ElMessage.success('保存成功')
+      }
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 400) {
+        ElMessage.error(err?.response?.data?.message || '保存失败，请检查数据')
+      } else if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '保存失败，请稍后重试')
+      }
+    } finally {
+      state.saving = false
+      loadingMsg.close()
+    }
   }
 
   // ================== 行操作 ==================
-  function onEditRow(row, index) {
-    // 演示：实际场景可打开编辑弹窗
-    ElMessage.info(`编辑第 ${index + 1} 行：${row.product || ''}`)
+  function onEditRow(row) {
+    // 点击编辑按钮：该行进入可编辑状态（自动替换原可编辑行，保证仅一行）
+    planState.value.editingRow = row
   }
 
   async function onDeleteRow(index) {
@@ -287,7 +365,12 @@ export function useApsArchive() {
         confirmButtonText: '删除',
         cancelButtonText: '取消',
       })
-      planState.value.tableData.splice(index, 1)
+      const state = planState.value
+      state.tableData.splice(index, 1)
+      // 若被删行正是可编辑行，则清空可编辑状态
+      if (state.editingRow && !state.tableData.includes(state.editingRow)) {
+        state.editingRow = null
+      }
       ElMessage.success('已删除')
     } catch {
       /* 用户取消 */

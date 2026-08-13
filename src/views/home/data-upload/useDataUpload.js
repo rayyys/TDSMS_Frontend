@@ -1,5 +1,6 @@
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { Search, RefreshRight, Loading } from '@element-plus/icons-vue'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { useStepNav } from '../useStepNav'
@@ -10,11 +11,12 @@ import {
   getHistoryUploadRecords,
   historyImport,
   deleteHistoryRecord,
+  getApsArchiveList,
 } from '@/api/scheduling'
 
 export function useDataUpload() {
   const schedulingStore = useSchedulingStore()
-  const { handleNext } = useStepNav()
+  const { handleNext: stepNavHandleNext, navigating } = useStepNav()
 
   // ==================== Tabs ====================
   const activeTab = ref('upload')
@@ -29,12 +31,69 @@ export function useDataUpload() {
   // ==================== 导入模式 ====================
   const importMode = ref('manual')
 
-  // APS 排产信息档案选择（当前为演示选项，后续可对接 APS 档案接口）
+  // APS 排产信息档案选择：选项由后端接口动态获取
+  const router = useRouter()
   const apsArchiveId = ref('')
-  const apsArchiveOptions = ref([
-    { label: '方案一', value: '1' },
-    { label: '方案二', value: '2' },
-  ])
+  const apsArchiveOptions = ref([])
+  // 「新增方案」特殊选项值，用于触发跳转而非真正选中
+  const APS_ARCHIVE_ADD = '__add__'
+
+  // 从后端拉取 APS 排产信息档案方案列表
+  async function fetchApsArchiveOptions() {
+    try {
+      const res = await getApsArchiveList()
+      const result = res?.data
+      if (result?.success === false) {
+        ElMessage.error(result.message || '获取APS档案列表失败')
+        return
+      }
+      const list = result?.data || result || []
+      apsArchiveOptions.value = list.map((item) => ({
+        label: item.name,
+        value: item.id,
+      }))
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '获取APS档案列表失败')
+      }
+    }
+  }
+
+  // 下拉框变化：选择「新增方案」时跳转到 APS 排产信息档案管理页面
+  function onApsArchiveChange(val) {
+    if (val === APS_ARCHIVE_ADD) {
+      // 跳转前清空选择，避免「新增方案」作为档案被记录
+      apsArchiveId.value = ''
+      router.push('/aps-archive')
+    }
+  }
+
+  // 页面加载时拉取档案方案，保证数据实时性
+  onMounted(fetchApsArchiveOptions)
+
+  // ==================== 下一步校验 ====================
+  function handleNext() {
+    const hasApsArchive = Boolean(apsArchiveId.value)
+    const hasUploadedFile = Boolean(schedulingStore.uploadedFileName)
+
+    if (!hasApsArchive && !hasUploadedFile) {
+      ElMessage.warning('当前缺少 APS 排产信息档案及药业车间分解编排计划，请完成上传后继续。')
+      return
+    }
+    if (!hasApsArchive) {
+      ElMessage.warning('当前未选择 APS 排产信息档案方案，请选择后继续。')
+      return
+    }
+    if (!hasUploadedFile) {
+      ElMessage.warning('当前未上传药业车间分解编排计划，请上传文件后继续。')
+      return
+    }
+
+    stepNavHandleNext()
+  }
 
   function onImportModeChange(val) {
     if (val === 'history') {
@@ -79,6 +138,12 @@ export function useDataUpload() {
   async function processFile(file) {
     if (!isExcelFile(file)) {
       ElMessage.error('仅支持 .xlsx / .xls 格式文件')
+      return
+    }
+
+    // 强制选择机制：上传文件前必须先选择一个 APS 排产信息档案方案
+    if (!apsArchiveId.value) {
+      ElMessage.warning('请先选择 APS 排产信息档案方案')
       return
     }
 
@@ -297,7 +362,7 @@ export function useDataUpload() {
       historyDialogVisible.value = false
       ElMessage.success('已导入历史记录')
       // 导入成功后自动跳转到任务数据页
-      handleNext()
+      stepNavHandleNext()
     } catch (err) {
       const status = err?.response?.status
       if (status === 400) {
@@ -325,9 +390,12 @@ export function useDataUpload() {
     // APS 排产信息档案
     apsArchiveId,
     apsArchiveOptions,
+    APS_ARCHIVE_ADD,
+    onApsArchiveChange,
     // upload
     uploadDragOver,
     uploading,
+    navigating,
     // history
     searchQuery,
     historyTableData,
@@ -356,5 +424,6 @@ export function useDataUpload() {
     onHistoryPageChange,
     onHistoryPageSizeChange,
     reimportHistory,
+    handleNext,
   }
 }

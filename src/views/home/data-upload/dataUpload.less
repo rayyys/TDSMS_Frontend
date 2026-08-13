@@ -79,8 +79,9 @@
         }
 
         .aps-archive-select {
-          flex: 1;
-          max-width: 400px;
+          // 固定宽度，禁止 flex 拉伸覆盖（flex-basis:0 会挤掉 width）
+          flex: 0 0 auto;
+          width: 15rem !important;
         }
     }
       // 上传区域标题

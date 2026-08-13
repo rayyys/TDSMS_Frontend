@@ -20,7 +20,10 @@
               }"
               @click="idx <= schedulingStore.maxVisitedStepIndex && handleSidebarClick(idx)"
             >
-              <el-icon class="step-icon"><component :is="stepIconMap[step.key]" /></el-icon>
+              <el-icon v-if="stepImgMap[step.key]" class="step-icon">
+                <img class="step-img" :src="stepImgMap[step.key]" alt="" />
+              </el-icon>
+              <el-icon v-else class="step-icon"><component :is="stepIconMap[step.key]" /></el-icon>
               <span class="step-label">{{ step.label }}</span>
               <el-icon v-if="idx < schedulingStore.currentStepIndex" class="step-check">
                 <Check />
@@ -41,8 +44,10 @@
 import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Check, Upload, Document, Tools, Cpu } from '@element-plus/icons-vue'
+import { Check, Upload, View, Tools, Cpu } from '@element-plus/icons-vue'
 import HeaderEl from '@/components/HeaderEl.vue'
+import imgModelBuild from '@/img/3.png'
+import imgModelSolve from '@/img/4.png'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { useAuthStore } from '@/stores/auth'
 import { readAuthSession, isTokenExpired } from '@/utils/authSession'
@@ -55,9 +60,15 @@ const authStore = useAuthStore()
 // 步骤图标映射（数据上传/任务数据/模型构建/模型求解）
 const stepIconMap = {
   upload: Upload,
-  taskData: Document,
+  taskData: View,
   modelBuild: Tools,
   modelSolve: Cpu,
+}
+
+// 步骤图片映射：模型构建 / 模型求解 使用本地图片作为图标
+const stepImgMap = {
+  modelBuild: imgModelBuild,
+  modelSolve: imgModelSolve,
 }
 
 // 步骤与路由的映射
@@ -186,6 +197,12 @@ onBeforeUnmount(() => {
         flex-shrink: 0;
       }
 
+      .step-img {
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+
       .step-label {
         flex: 1;
         font-size: 1rem;
@@ -206,6 +223,11 @@ onBeforeUnmount(() => {
       &.active {
         color: #fff;
         background: @brand-primary;
+
+        .step-img {
+          // 选中态下将图片变为白色
+          filter: brightness(0) invert(1);
+        }
 
         .step-check {
           color: #fff;

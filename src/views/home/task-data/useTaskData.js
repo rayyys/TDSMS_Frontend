@@ -18,19 +18,19 @@ const TABLE_COLUMNS = [
   { key: 'materialCode', label: '物料编码', width: 160 },
   { key: 'materialName', label: '存货名称', width: 240 },
   { key: 'specification', label: '规格', width: 220 },
-  { key: 'u8Stock', label: 'U8现存量', width: 130, align: 'right' },
-  { key: 'monthlyPlan', label: '07月份生产计划', width: 170, align: 'right' },
-  { key: 'submitTotal', label: '提报合计', width: 140, align: 'right' },
+  { key: 'u8Stock', label: 'U8现存量', width: 130 },
+  { key: 'monthlyPlan', label: '07月份生产计划', width: 170 },
+  { key: 'submitTotal', label: '提报合计', width: 140 },
 ]
 
 export function useTaskData() {
   const schedulingStore = useSchedulingStore()
 
   // —— 筛选区状态 ——
-  // 部门为多选（空数组 = 全部）；生产计划 / 存货名称单选（'all' 表示「全部」）
+  // 部门 / 生产计划 / 存货名称均为多选（空数组 = 全部）
   const filterDepartment = ref([])
-  const filterProductionPlan = ref('all')
-  const filterInventoryName = ref('all')
+  const filterProductionPlan = ref([])
+  const filterInventoryName = ref([])
 
   // —— 搜索 / 翻页状态 ——
   // 需求：表格始终固定展示 10 行，与实际数据量无关
@@ -40,6 +40,8 @@ export function useTaskData() {
   const pageSize = ref(10)
   const totalRows = ref(0)
   const tableLoading = ref(false)
+  // 页面跳转输入框绑定的页码
+  const jumpPage = ref('')
 
   // —— 表格行 ——
   const rawRows = ref([])
@@ -88,18 +90,28 @@ export function useTaskData() {
       const depts = new Set(filterDepartment.value)
       rows = rows.filter((r) => depts.has(r.department))
     }
-    if (filterProductionPlan.value !== 'all') {
+    // 生产计划多选：选中的计划作为集合，命中任一计划即保留
+    if (filterProductionPlan.value.length > 0) {
+      const plans = new Set(filterProductionPlan.value)
       rows = rows.filter((r) => {
         if (!r.monthlyPlan) return false
         // 后端返回的月度计划格式可能是 "2026-07" 或 "2026年07月"，做兼容判断
-        return (
-          String(r.monthlyPlan).includes(filterProductionPlan.value) ||
-          String(r.monthlyPlan).replace(/年|月/g, '-').replace(/-$/, '').replace(/^(\d{4})-(\d{1,2})$/, '$1-0$2').includes(filterProductionPlan.value)
-        )
+        const raw = String(r.monthlyPlan)
+        const normalized = raw.replace(/年|月/g, '-').replace(/-$/, '').replace(/^(\d{4})-(\d{1,2})$/, '$1-0$2')
+        return [...plans].some((p) => raw.includes(p) || normalized.includes(p))
       })
     }
-    if (filterInventoryName.value !== 'all') {
-      rows = rows.filter((r) => r.materialName === filterInventoryName.value)
+    // 存货名称多选：命中任一名称即保留
+    if (filterInventoryName.value.length > 0) {
+      const names = new Set(filterInventoryName.value)
+      rows = rows.filter((r) => names.has(r.materialName))
+    }
+    // 关键词搜索：对整行所有字段做模糊匹配（不区分大小写）
+    if (inputKeyword.value) {
+      const kw = inputKeyword.value.trim().toLowerCase()
+      rows = rows.filter((r) =>
+        Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(kw))
+      )
     }
     return rows
   })
@@ -163,8 +175,8 @@ export function useTaskData() {
    */
   function handleReset() {
     filterDepartment.value = []
-    filterProductionPlan.value = 'all'
-    filterInventoryName.value = 'all'
+    filterProductionPlan.value = []
+    filterInventoryName.value = []
     keyword.value = ''
     inputKeyword.value = ''
     currentPage.value = 1
@@ -177,6 +189,21 @@ export function useTaskData() {
   function handleFilter() {
     currentPage.value = 1
     fetchData()
+  }
+
+  /**
+   * 页面跳转：根据输入框页码跳转到指定页，越界时自动收敛到首尾页
+   */
+  function handleJump() {
+    const page = Number(jumpPage.value)
+    // 非法输入（非数字 / 小于 1）时忽略
+    if (!page || page < 1) {
+      jumpPage.value = ''
+      return
+    }
+    const maxPage = Math.max(1, Math.ceil(filteredRows.value.length / pageSize.value))
+    currentPage.value = Math.min(page, maxPage)
+    jumpPage.value = ''
   }
 
   /**
@@ -229,6 +256,7 @@ export function useTaskData() {
     pageSize,
     totalRows,
     tableLoading,
+    jumpPage,
     // 表格数据
     pagedRows,
     tableColumns,
@@ -238,6 +266,7 @@ export function useTaskData() {
     handleSearch,
     handleFilter,
     handleReset,
+    handleJump,
     fetchData,
   }
 }

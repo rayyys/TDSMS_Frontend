@@ -116,6 +116,33 @@ export function getExcelData(data) {
   })
 }
 
+// ========== APS 排产信息档案模块 ==========
+
+/**
+ * 查询 APS 排产信息档案方案列表
+ * @returns {Promise} data: [{ id, name }]
+ */
+export function getApsArchiveList() {
+  return request({
+    method: 'get',
+    url: '/aps/archive/list',
+  })
+}
+
+/**
+ * 保存 APS 排产信息档案
+ * 服务端会执行「品种」唯一性校验；若重复，则按品种分组排序并将新增行移至分组最下方
+ * @param {Object} payload { planId, rows, newRowIndex }
+ * @returns {Promise} data: { rows, duplicate, newRowIndex }
+ */
+export function saveApsArchive(payload) {
+  return request({
+    method: 'post',
+    url: '/aps/archive/save',
+    data: payload,
+  })
+}
+
 // ========== 工作流步骤提交 ==========
 
 /**

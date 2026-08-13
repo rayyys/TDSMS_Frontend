@@ -12,7 +12,7 @@
             <span class="filter-label">部门：</span>
             <el-select
               v-model="filterDepartment"
-              class="filter-select filter-select--dept"
+              class="td-filter-select td-filter-select--dept"
               placeholder="请选择部门"
               multiple
               collapse-tags
@@ -32,10 +32,13 @@
             <span class="filter-label">生产计划：</span>
             <el-select
               v-model="filterProductionPlan"
-              class="filter-select"
-              placeholder="全部"
+              class="td-filter-select td-filter-select--plan"
+              placeholder="请选择生产计划"
+              multiple
+              collapse-tags
+              clearable
+              popper-class="dept-select-popper"
             >
-              <el-option label="全部" value="all" />
               <el-option
                 v-for="opt in productionPlanOptions"
                 :key="opt.value"
@@ -49,10 +52,13 @@
             <span class="filter-label">存货名称：</span>
             <el-select
               v-model="filterInventoryName"
-              class="filter-select"
-              placeholder="全部"
+              class="td-filter-select td-filter-select--inventory"
+              placeholder="请选择存货名称"
+              multiple
+              collapse-tags
+              clearable
+              popper-class="dept-select-popper"
             >
-              <el-option label="全部" value="all" />
               <el-option
                 v-for="opt in inventoryOptions"
                 :key="opt"
@@ -119,16 +125,29 @@
         </AdaptiveTableContainer>
       </div>
 
-      <!-- 分页区：左下角显示总条数，右侧分页 -->
+      <!-- 分页区：左下角显示总条数，右侧分页 + 页面跳转 -->
       <div class="pagination-row">
         <span class="total-count">共 {{ totalRows }} 条</span>
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :total="totalRows"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="prev, pager, next"
-        />
+        <div class="pagination-right">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalRows"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="prev, pager, next"
+          />
+          <!-- 页面跳转：跳转至 x 页 按钮 -->
+          <div class="jump-box">
+            <span class="jump-label">跳转至</span>
+            <el-input
+              v-model="jumpPage"
+              class="jump-input"
+              @keyup.enter="handleJump"
+            />
+            <span class="jump-label">页</span>
+            <el-button class="jump-btn" @click="handleJump">跳转</el-button>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -171,6 +190,7 @@ const {
   pageSize,
   totalRows,
   tableLoading,
+  jumpPage,
   // 表格
   pagedRows,
   tableColumns,
@@ -179,6 +199,7 @@ const {
   handleSearch,
   handleFilter,
   handleReset,
+  handleJump,
 } = useTaskData()
 
 const { handlePrev, handleNext, isSolving } = useStepNav()

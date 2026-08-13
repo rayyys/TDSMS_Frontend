@@ -20,6 +20,7 @@
             class="aps-archive-select"
             placeholder="请选择"
             clearable
+            @change="onApsArchiveChange"
           >
             <el-option
               v-for="opt in apsArchiveOptions"
@@ -27,6 +28,10 @@
               :label="opt.label"
               :value="opt.value"
             />
+            <!-- 新增方案入口：选中后跳转到 APS 排产信息档案管理页面 -->
+            <el-option :value="APS_ARCHIVE_ADD">
+              <span class="aps-archive-add-option">新增方案 + </span>
+            </el-option>
           </el-select>
         </div>
 
@@ -192,7 +197,6 @@ import { computed } from 'vue'
 import { Document, Download, Loading } from '@element-plus/icons-vue'
 import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import { useDataUpload } from './useDataUpload'
-import { useStepNav } from '../useStepNav'
 
 // 历史记录弹窗表格列配置，供 AdaptiveTableContainer 自适应计算列宽
 const historyTableColumns = computed(() => [
@@ -210,6 +214,8 @@ const {
   importMode,
   apsArchiveId,
   apsArchiveOptions,
+  APS_ARCHIVE_ADD,
+  onApsArchiveChange,
   uploadDragOver,
   uploading,
   historyDialogVisible,
@@ -230,9 +236,9 @@ const {
   reimportHistory,
   onHistoryPageChange,
   onHistoryPageSizeChange,
+  handleNext,
+  navigating,
 } = useDataUpload()
-
-const { handleNext, navigating } = useStepNav()
 </script>
 
 <style lang="less" scoped>
@@ -240,6 +246,12 @@ const { handleNext, navigating } = useStepNav()
 </style>
 
 <style lang="less">
+.aps-archive-add-option {
+  color: #004aa9;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .history-import-dialog {
   width: 75vw; /* 约1440px（基于1920设计稿），让表格列有更多展示空间 */
   max-width: calc(100vw - 64px);
