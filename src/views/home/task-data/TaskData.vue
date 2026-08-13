@@ -113,8 +113,8 @@
               >
                 <template #default="{ row }">
                   <!-- 占位行：隐藏文字但保留行高，确保容器高度恒定为 10 行 -->
-                  <span v-if="row._isPlaceholder" class="cell-placeholder">—</span>
-                  <span v-else class="cell-text">{{ row[col.key] || '—' }}</span>
+                  <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
+                  <span v-else class="cell-text">{{ row[col.key] || '-' }}</span>
                 </template>
               </el-table-column>
               <template #empty>

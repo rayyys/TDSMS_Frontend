@@ -43,7 +43,9 @@ const overflow = ref(false)
 // 空值（null/undefined/空串）统一显示短横线；0 视为有效值正常显示
 const displayText = computed(() => {
   const v = props.content
-  return v === null || v === undefined || v === '' ? '—' : v
+  if (v === null || v === undefined || v === '') return '-'
+  // 页面显示时把长横线（— 破折号 / – 短破折线）及连续短横线统一为单个短横线 -（仅影响显示，不修改原始数据）
+  return String(v).replace(/[—–-]+/g, '-')
 })
 
 // 检测文本是否超过两行：

@@ -521,11 +521,12 @@
         >
           <template #default="scope">
             <div class="row-actions">
+              <!-- 编辑态：图标切换为对号，点击触发保存（与底部保存按钮同一逻辑） -->
               <el-button
                 link
                 class="row-action-btn row-action-edit"
-                :icon="Edit"
-                @click="onEditRow(scope.row)"
+                :icon="isRowEditable(scope.row) ? Check : Edit"
+                @click="isRowEditable(scope.row) ? onSaveTable() : onEditRow(scope.row)"
               />
               <el-button
                 link
@@ -563,7 +564,7 @@
 
 <script setup>
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { Plus, Upload, Edit, Delete, Search } from '@element-plus/icons-vue'
+import { Plus, Upload, Edit, Delete, Search, Check } from '@element-plus/icons-vue'
 import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import ApsOverflowText from './ApsOverflowText.vue'
 
@@ -1133,9 +1134,9 @@ function onClickImport() {
       color: #2d3436;
     }
 
-    // 聚焦时仅保留浅色底，不再显示单元格级的小边框（由整行深蓝外边框标识编辑态）
+    // 聚焦态不再显示浅色底，编辑态视觉反馈由整行深蓝外边框提供
     .el-input__wrapper.is-focus {
-      background: #f5f9ff;
+      background: transparent;
     }
   }
 
