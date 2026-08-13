@@ -100,9 +100,12 @@ const densityLevel = computed(() => ({
 }))
 
 // --- 列宽计算逻辑 ---
-const selectionColWidth = computed(() =>
-  Math.max(props.absoluteFloorPx, Math.round(SELECTION_BASE_PX * currentScale.value)),
-)
+// 多选列宽度：默认 50，可通过列配置的 width 自定义基准宽度（随容器缩放）
+const selectionColWidth = computed(() => {
+  const selCol = props.columns.find((c) => c.type === 'selection')
+  const raw = Number(selCol?.width) || SELECTION_BASE_PX
+  return Math.max(props.absoluteFloorPx, Math.round(raw * currentScale.value))
+})
 
 function estimateLabelTextPx(label, fontPx) {
   const text = String(label ?? '').trim()

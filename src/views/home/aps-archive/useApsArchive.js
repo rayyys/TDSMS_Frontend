@@ -197,30 +197,52 @@ export function useApsArchive() {
     if (!Array.isArray(rows) || rows.length < 2) return []
 
     // 数据从第 3 行（index 2）开始
-    return rows.slice(2).map((row) => ({
-      product: row[0] ?? '',
-      packageSpec: row[1] ?? '',
-      dispensingLine: row[2] ?? '',
-      batchQty: row[3] ?? '',
-      shiftOutput: row[4] ?? '',
-      dispensingStaff: row[5] ?? '',
-      pressMachine: row[6] ?? '',
-      pressOutput: row[7] ?? '',
-      pressStaff: row[8] ?? '',
-      coatingMachine: row[9] ?? '',
-      coatingOutput: row[10] ?? '',
-      coatingStaff: row[11] ?? '',
-      fillingEquip: row[12] ?? '',
-      fillingOutput: row[13] ?? '',
-      fillingStaff: row[14] ?? '',
-      packingEquip: row[15] ?? '',
-      packingOutput: row[16] ?? '',
-      manualOutput: row[17] ?? '',
-      packingStaff: row[18] ?? '',
-      cycleDays: row[19] ?? '',
-      isProcurement: row[20] ?? '',
-      annualSales: row[21] ?? '',
-    }))
+    return rows.slice(2).map((row) =>
+      trimRowWhitespace({
+        product: row[0] ?? '',
+        packageSpec: row[1] ?? '',
+        dispensingLine: row[2] ?? '',
+        batchQty: row[3] ?? '',
+        shiftOutput: row[4] ?? '',
+        dispensingStaff: row[5] ?? '',
+        pressMachine: row[6] ?? '',
+        pressOutput: row[7] ?? '',
+        pressStaff: row[8] ?? '',
+        coatingMachine: row[9] ?? '',
+        coatingOutput: row[10] ?? '',
+        coatingStaff: row[11] ?? '',
+        fillingEquip: row[12] ?? '',
+        fillingOutput: row[13] ?? '',
+        fillingStaff: row[14] ?? '',
+        packingEquip: row[15] ?? '',
+        packingOutput: row[16] ?? '',
+        manualOutput: row[17] ?? '',
+        packingStaff: row[18] ?? '',
+        cycleDays: row[19] ?? '',
+        isProcurement: row[20] ?? '',
+        annualSales: row[21] ?? '',
+      }),
+    )
+  }
+
+  // 表格行数据字段键列表（用于统一清理首尾空白）
+  const TABLE_FIELD_KEYS = [
+    'product', 'packageSpec', 'dispensingLine', 'batchQty', 'shiftOutput',
+    'dispensingStaff', 'pressMachine', 'pressOutput', 'pressStaff',
+    'coatingMachine', 'coatingOutput', 'coatingStaff', 'fillingEquip',
+    'fillingOutput', 'fillingStaff', 'packingEquip', 'packingOutput',
+    'manualOutput', 'packingStaff', 'cycleDays', 'isProcurement', 'annualSales',
+  ]
+
+  // 去除一行所有字段值左右两侧的空白，避免 Excel 或手动输入带多余空格
+  function trimRowWhitespace(row) {
+    if (!row || typeof row !== 'object') return row
+    for (const key of TABLE_FIELD_KEYS) {
+      if (typeof row[key] === 'string') {
+        row[key] = row[key].trim()
+      }
+    }
+    return row
   }
 
   // 下载模板占位
@@ -297,6 +319,8 @@ export function useApsArchive() {
       ElMessage.warning('暂无可保存的数据')
       return
     }
+    // 保存前自动清理所有字段左右两侧空白，避免把多余空格提交到服务端
+    rows.forEach(trimRowWhitespace)
     // 情况二（品种重复）时会触发页面刷新式排序，保存期间禁止重复提交
     if (state.saving) return
     state.saving = true
