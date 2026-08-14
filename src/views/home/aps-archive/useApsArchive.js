@@ -1,7 +1,7 @@
 import { ref, computed, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
-import { saveApsArchive } from '@/api/scheduling'
+import { createApsArchive } from '@/api/scheduling'
 
 /**
  * 创建单个方案的默认状态
@@ -23,6 +23,8 @@ function createPlanState() {
     scrollToRow: null,
     // 当前处于可编辑状态的行（同时仅一行，null 表示无）
     editingRow: null,
+    // 原始上传文件对象（保存时上传给后端解析）
+    rawFile: null,
   }
 }
 
@@ -171,6 +173,8 @@ export function useApsArchive() {
       state.uploadedFileName = file.name
       state.hasImported = true
       state.selectedRows = []
+      // 保留原始文件对象，保存时上传给后端解析
+      state.rawFile = file
       if (rows.length === 0) {
         ElMessage.warning('Excel 中未解析到数据行，请检查模板')
       } else {
@@ -311,60 +315,58 @@ export function useApsArchive() {
     ElMessage.info('导出表格功能待接入')
   }
 
-  // 保存：先交由服务端做品种唯一性校验，再按返回结果处理数据与滚动定位
+  // 保存：上传原始 Excel 文件给后端解析，创建 APS 方案
   async function onSaveTable() {
     const state = planState.value
-    const rows = state.tableData
-    if (!rows.length) {
-      ElMessage.warning('暂无可保存的数据')
+    if (state.saving) return
+
+    // 校验：必须先上传 Excel 文件
+    if (!state.rawFile) {
+      ElMessage.warning('请先上传 Excel 文件')
       return
     }
-    // 保存前自动清理所有字段左右两侧空白，避免把多余空格提交到服务端
-    rows.forEach(trimRowWhitespace)
-    // 情况二（品种重复）时会触发页面刷新式排序，保存期间禁止重复提交
-    if (state.saving) return
+
+    // 获取当前方案名称作为 archiveName
+    const activePlan = planList.value.find((p) => p.id === activePlanId.value)
+    const archiveName = activePlan?.name || '未命名方案'
+
     state.saving = true
 
     const loadingMsg = ElMessage({
-      message: '正在保存并校验品种唯一性...',
+      message: '正在上传并解析文件...',
       type: 'info',
       duration: 0,
     })
 
     try {
-      const res = await saveApsArchive({
-        planId: activePlanId.value,
-        rows,
-        newRowIndex: state.newRowIndex ?? rows.length - 1,
-      })
+      const formData = new FormData()
+      formData.append('archiveName', archiveName)
+      formData.append('file', state.rawFile)
+
+      const res = await createApsArchive(formData)
       const result = res?.data
       if (result?.success === false) {
         ElMessage.error(result.message || '保存失败')
         return
       }
-      const data = result?.data || result || {}
-      const savedRows = data.rows || rows
 
-      // 应用服务端返回的（可能已排序）数据
-      state.tableData = savedRows
+      const data = result?.data || {}
+      // 保存成功后，用后端返回的 archiveId 更新方案 ID
+      if (data.archiveId && activePlan) {
+        activePlan.id = String(data.archiveId)
+        activePlanId.value = activePlan.id
+      }
       state.selectedRows = []
       state.newRowIndex = null
-      // 保存后行对象被服务端替换，清空可编辑状态（用户可再次点编辑进入）
       state.editingRow = null
 
-      if (data.duplicate) {
-        // 情况二：品种重复，已按品种分组排序，滚动定位到新增行
-        // 注意：服务端返回的是序列化后的新对象，需用返回的 newRowIndex 定位该行
-        ElMessage.success('保存成功，检测到品种重复，已按品种分组排序')
-        state.scrollToRow = savedRows[data.newRowIndex]
-      } else {
-        // 情况一：品种不重复，保持原位置，即时生效
-        ElMessage.success('保存成功')
-      }
+      ElMessage.success(
+        `保存成功，共导入 ${data.dataCount ?? state.tableData.length} 条数据`,
+      )
     } catch (err) {
       const status = err?.response?.status
       if (status === 400) {
-        ElMessage.error(err?.response?.data?.message || '保存失败，请检查数据')
+        ElMessage.error(err?.response?.data?.message || '保存失败，请检查文件格式')
       } else if (status === 401) {
         // 401 已在响应拦截器中统一处理（提示 + 跳转）
       } else {

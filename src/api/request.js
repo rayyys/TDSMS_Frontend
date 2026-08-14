@@ -4,13 +4,13 @@ import router from '@/router'
 import { readAuthSession } from '@/utils/authSession'
 import { useAuthStore } from '@/stores/auth'
 
-const skipAuthPaths = ['/auth/login', '/auth/register']
-const skipAuthRedirectPaths = ['/auth/login', '/auth/register']
+const skipAuthPaths = ['/auth/login']
+const skipAuthRedirectPaths = ['/auth/login']
 let authRedirecting = false
 
 const service = axios.create({
   // 开发环境使用相对路径，走 Vite 代理；生产环境可在打包时通过环境变量注入
-  baseURL: '/ivsms',
+  baseURL: '/tdsms',
   timeout: 600000,
 })
 

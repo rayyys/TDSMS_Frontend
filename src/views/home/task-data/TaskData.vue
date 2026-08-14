@@ -200,9 +200,18 @@ const {
   handleFilter,
   handleReset,
   handleJump,
+  ensureDataLoaded,
 } = useTaskData()
 
-const { handlePrev, handleNext, isSolving } = useStepNav()
+const stepNav = useStepNav()
+const { handlePrev, isSolving } = stepNav
+
+// 任务数据页「下一步」：先等待任务数据加载完成，再放行步骤导航。
+// 修复首启动时任务数据仍在加载（接口存在延迟）即点击下一步被 canNext 拦截的问题
+async function handleNext() {
+  await ensureDataLoaded()
+  await stepNav.handleNext()
+}
 </script>
 
 <style lang="less" scoped>

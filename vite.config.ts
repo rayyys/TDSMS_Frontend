@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
         resolvers: [ElementPlusResolver()],
         dts: 'src/components.d.ts',
       }),
-      // 本地 mock：拦截 /ivsms 开头的请求返回模拟数据，便于无后端时开发联调
+      // 本地 mock：拦截 /tdsms 开头的请求返回模拟数据，便于无后端时开发联调
       // 插件以 enforce: 'pre' 注册，先于代理中间件执行，因此无需改动下方 proxy
       viteMockServe({
         mockPath: 'mock',
@@ -47,14 +47,15 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       open: true,
       proxy: {
-        // 开发环境代理：将 /ivsms 转发到后端，解决浏览器 CORS 限制
-        // mock 开启时会优先被拦截，mock 关闭后走此代理请求真实后端
-        '/ivsms': {
+        // 开发环境代理：将 /tdsms 转发到后端，解决浏览器 CORS 限制
+        // mock 开启时会优先被拦截，mock 关闭后走此代理请求真实后端       
+        // 前端8006 后端8007，ip不变
+        '/tdsms': {
           //服务器
-          target: 'http://60.205.199.162:8005',
+          // target: 'http://60.205.199.162:8007',
 
-          //tsh
-          // target: 'http://192.168.3.72:8000',
+          //本地
+          target: 'http://192.168.3.72:8000',
           changeOrigin: true,
         },
       },

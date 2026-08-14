@@ -2,265 +2,243 @@ import request from './request'
 
 /**
  * 调度相关 API 接口
+ * 所有接口路径及参数均依据《片剂药物智能排程系统》接口文档定义
  */
 
-// ========== 用户认证模块 ==========
+// ========== APS 排产信息档案模块 ==========
 
 /**
- * 用户登录
- * @param {Object} payload { username, password }
- * @returns {Promise}
+ * 下载 APS 排产信息模板
+ * GET /aps/template
+ * @returns {Promise} Excel 文件流
  */
-export function login(payload) {
-  return request({
-    method: 'post',
-    url: '/user/login/',
-    data: payload,
-  })
-}
-
-/**
- * 用户退出登录
- * @param {Object} payload
- * @returns {Promise}
- */
-export function logout(payload) {
-  return request({
-    method: 'post',
-    url: '/user/logout/',
-    data: payload,
-  })
-}
-
-// ========== 数据上传模块 ==========
-
-/**
- * 下载 Excel 模板
- * @returns {Promise}
- */
-export function downloadExcelTemplate() {
+export function downloadApsTemplate() {
   return request({
     method: 'get',
-    url: '/tasks/download',
+    url: '/aps/template',
     responseType: 'blob',
   })
 }
 
 /**
- * 查询历史上传记录
- * @param {Object} params { pageNum, pageSize, keyword, status }
- * @returns {Promise}
+ * 查询当前用户的 APS 方案列表
+ * GET /aps/listQuery
+ * 仅返回当前登录用户创建的未删除方案
+ * @returns {Promise} data: [{ archiveId, archiveName, createTime, updateTime }]
  */
-export function getHistoryUploadRecords(params) {
+export function getApsArchiveList() {
   return request({
     method: 'get',
-    url: '/tasks/historyQuery',
+    url: '/aps/listQuery',
+  })
+}
+
+/**
+ * 查询 APS 方案明细
+ * GET /aps/infoQuery
+ * @param {Object} params { archiveId, keyword }
+ * @returns {Promise} data: { total, records: [...] }
+ */
+export function getApsArchiveItems(params) {
+  return request({
+    method: 'get',
+    url: '/aps/infoQuery',
     params,
   })
 }
 
 /**
- * 上传排程数据文件
- * @param {FormData} formData { file, remark }
- * @returns {Promise}
+ * 新建 APS 方案（上传 Excel 文件，后端解析）
+ * POST /aps/create
+ * @param {FormData} formData { archiveName: string, file: File }
+ * @returns {Promise} data: { archiveId, archiveName, sourceFileName, dataCount, ... }
  */
-export function uploadScheduleFile(formData) {
+export function createApsArchive(formData) {
   return request({
     method: 'post',
-    url: '/tasks/upload',
+    url: '/aps/create',
     data: formData,
     // 上传 FormData 时不手动设置 Content-Type，由浏览器自动补全 boundary
-    // 否则后端无法正确解析 multipart 文件字段，会导致 400 文件格式错误
     headers: { 'Content-Type': undefined },
   })
 }
 
 /**
- * 历史记录导入（复用历史排程任务数据）
- * @param {Object} payload { sourceTaskId }
+ * 删除 APS 方案（逻辑删除，仅能删除自己的方案）
+ * POST /aps/delete
+ * @param {Object} params { archiveId }
  * @returns {Promise}
  */
-export function historyImport(payload) {
+export function deleteApsArchive(params) {
+  return request({
+    method: 'post',
+    url: '/aps/delete',
+    params,
+  })
+}
+
+// ========== 任务上传模块 ==========
+
+/**
+ * 下载药业车间分解编排计划模板
+ * GET /task/template
+ * @returns {Promise} Excel 文件流
+ */
+export function downloadTaskTemplate() {
+  return request({
+    method: 'get',
+    url: '/task/template',
+    responseType: 'blob',
+  })
+}
+
+/**
+ * 查询历史记录
+ * GET /task/historyQuery
+ * @param {Object} params { page, pageSize }
+ * @returns {Promise}
+ */
+export function getTaskHistory(params) {
+  return request({
+    method: 'get',
+    url: '/task/historyQuery',
+    params,
+  })
+}
+
+/**
+ * 删除历史记录（逻辑删除，仅能删除自己的记录）
+ * POST /task/delete
+ * @param {Object} params { importId }
+ * @returns {Promise}
+ */
+export function deleteTaskHistory(params) {
+  return request({
+    method: 'post',
+    url: '/task/delete',
+    params,
+  })
+}
+
+/**
+ * 导入历史记录（基于历史任务复制生成新排程任务）
+ * POST /tasks/historyImport
+ * @param {Object} data { taskId }
+ * @returns {Promise} data: { taskId, taskNo, taskName, ... }
+ */
+export function historyImportTask(data) {
   return request({
     method: 'post',
     url: '/tasks/historyImport',
-    data: payload,
+    data,
   })
 }
 
 /**
- * 历史记录删除（逻辑删除）
- * @param {Object} payload { taskId }
- * @returns {Promise}
+ * 导入车间计划并新建任务（上传 Excel 文件，后端解析）
+ * POST /task/import
+ * 必须同时选择 APS 方案并上传 .xlsx 或 .xls 计划文件
+ * @param {FormData} formData { apsArchiveId, remark, file }
+ * @returns {Promise} data: { importId, originalFileName, apsArchive, remark, dataCount, ... }
  */
-export function deleteHistoryRecord(payload) {
+export function importTask(formData) {
   return request({
     method: 'post',
-    url: '/tasks/historyDelete',
-    data: payload,
+    url: '/task/import',
+    data: formData,
+    headers: { 'Content-Type': undefined },
   })
 }
 
-// ========== Excel 数据展示模块 ==========
+// ========== 数据展示模块 ==========
 
 /**
- * 查询 Excel 文件数据
- * @param {Object} data { taskId, mode, page, pageSize, onlyAbnormal, keyword }
+ * 查询计划明细（已解析并保存到数据库的药业车间分解编排计划明细）
+ * GET /task/detailQuery
+ * @param {Object} params { importId, page, pageSize, keyword }
  * @returns {Promise}
  */
-export function getExcelData(data) {
+export function getTaskDetail(params) {
   return request({
     method: 'get',
-    url: '/tasks/excelShow',
-    params: data,
-  })
-}
-
-// ========== APS 排产信息档案模块 ==========
-
-/**
- * 查询 APS 排产信息档案方案列表
- * @returns {Promise} data: [{ id, name }]
- */
-export function getApsArchiveList() {
-  return request({
-    method: 'get',
-    url: '/aps/archive/list',
-  })
-}
-
-/**
- * 保存 APS 排产信息档案
- * 服务端会执行「品种」唯一性校验；若重复，则按品种分组排序并将新增行移至分组最下方
- * @param {Object} payload { planId, rows, newRowIndex }
- * @returns {Promise} data: { rows, duplicate, newRowIndex }
- */
-export function saveApsArchive(payload) {
-  return request({
-    method: 'post',
-    url: '/aps/archive/save',
-    data: payload,
-  })
-}
-
-// ========== 工作流步骤提交 ==========
-
-/**
- * 提交数据上传步骤（步骤 1 → 2）
- * @param {Object} payload { fileName, sheetNames, totalRowCount, taskRemark }
- * @returns {Promise}
- */
-export function submitDataUpload(payload) {
-  return request({
-    method: 'post',
-    url: '/tasks/upload',
-    data: payload,
-  })
-}
-
-/**
- * 提交模型构建配置（步骤 3 → 4）
- * @param {Object} payload { optimizationGoal, earliestStartTime, deadlineDate, maxSolveTime }
- * @returns {Promise}
- */
-export function submitModelConfig(payload) {
-  return request({
-    method: 'post',
-    url: '/scheduling/model-build/',
-    data: payload,
+    url: '/task/detailQuery',
+    params,
   })
 }
 
 // ========== 模型求解模块 ==========
 
 /**
- * 提交模型求解（启动算法求解）
- * @param {Object} payload { taskId, objectiveWeight, orderStartTime, dueTime, maxSolveTime }
- * @returns {Promise}
+ * 创建并开始求解任务
+ * POST /solve/start
+ * 后端根据 importId 读取任务数据，创建求解任务后异步调用算法服务
+ * @param {Object} data { importId, scheduleMonth, productionRules, personnelCapacity, solverTimeLimitMinutes }
+ * @returns {Promise} data: { solveTaskId, importId, solveStatus, progress, createTime }
  */
-export function submitModelSolve(payload) {
+export function startSolveTask(data) {
   return request({
     method: 'post',
-    url: '/solves/start',
-    data: payload,
+    url: '/solve/start',
+    data,
   })
 }
 
 /**
- * 查询求解状态
- * @param {Object} params { solveId }
- * @returns {Promise}
+ * 查询求解任务状态和结果
+ * GET /solve/query
+ * 前端创建求解任务后定时调用，只能查询当前用户创建的求解任务
+ * @param {Object} params { solveTaskId }
+ * @returns {Promise} data: { solveTaskId, importId, inputParams, solveStatus, finishReason, startTime, finishTime, createTime }
  */
-export function getSolveStatus(params) {
+export function getSolveTask(params) {
   return request({
     method: 'get',
-    url: '/solves/status',
+    url: '/solve/query',
     params,
   })
 }
 
 /**
- * 查询求解日志
- * @param {Object} params { solveId }
- * @returns {Promise}
+ * 查询求解日志（按日志 ID 增量查询）
+ * GET /solve/logs
+ * 首次传 afterLogId=0，后续传上一次返回的 lastLogId，只获取新增日志
+ * @param {Object} params { solveTaskId, afterLogId }
+ * @returns {Promise} data: [{ logId, logContent, createTime }]
  */
-export function getSolveLogs(params) {
+export function getSolveTaskLogs(params) {
   return request({
     method: 'get',
-    url: '/solves/logs',
+    url: '/solve/logs',
     params,
   })
 }
 
 /**
- * 查询求解参数信息
- * @param {Object} params { solveId }
+ * 停止求解（停止等待中或正在运行的求解任务）
+ * POST /solve/stop
+ * @param {Object} data { solveTaskId }
  * @returns {Promise}
  */
-export function getSolveParamInfo(params) {
-  return request({
-    method: 'get',
-    url: '/solves/paramInfo',
-    params,
-  })
-}
-
-/**
- * 获取最大生产时间
- * @param {Object} params { fileId }
- * @returns {Promise}
- */
-export function getProducTime(params) {
-  return request({
-    method: 'get',
-    url: '/solves/producTime',
-    params,
-  })
-}
-
-/**
- * 停止求解
- * @param {Object} payload { solveId }
- * @returns {Promise}
- */
-export function stopSolve(payload) {
+export function stopSolveTask(data) {
   return request({
     method: 'post',
-    url: '/solves/stop',
-    data: payload,
+    url: '/solve/stop',
+    data,
   })
 }
 
 /**
  * 导出求解结果 Excel
- * @param {Object} params { solveId }
- * @returns {Promise}
+ * POST /solve/result
+ * 求解成功时导出最终结果；用户停止且存在局部结果时可导出局部结果
+ * @param {Object} data { solveTaskId }
+ * @returns {Promise} Excel 文件流
  */
-export function exportSolveResult(params) {
+export function exportSolveTaskResult(data) {
   return request({
     method: 'post',
-    url: '/solves/resultExport',
-    data: params,
+    url: '/solve/result',
+    data,
     responseType: 'blob',
   })
 }
@@ -269,8 +247,9 @@ export function exportSolveResult(params) {
 
 /**
  * 创建测试用户
- * @param {Object} payload { username, password, validDays }
- * @returns {Promise}
+ * POST /admin/create
+ * @param {Object} payload { username, password, validDays, realName, departmentName }
+ * @returns {Promise} data: { userId, username, status, expireTime, remainingDays }
  */
 export function createTestUser(payload) {
   return request({
@@ -281,9 +260,10 @@ export function createTestUser(payload) {
 }
 
 /**
- * 查询测试用户列表
- * @param {Object} data { page, pageSize }
- * @returns {Promise}
+ * 查询测试用户列表（分页查询，支持账号模糊查询）
+ * GET /admin/query
+ * @param {Object} params { page, pageSize }
+ * @returns {Promise} data: { total, page, pageSize, records: [...] }
  */
 export function getTestUserList(params) {
   return request({
@@ -295,8 +275,9 @@ export function getTestUserList(params) {
 
 /**
  * 更新测试用户有效期
+ * POST /admin/expireUpdate
  * @param {Object} payload { userId, validDays }
- * @returns {Promise}
+ * @returns {Promise} data: { userId, username, status, expireTime, remainingDays }
  */
 export function updateTestUserValidity(payload) {
   return request({
@@ -308,54 +289,14 @@ export function updateTestUserValidity(payload) {
 
 /**
  * 启用或停用测试用户
- * @param {Object} payload { userId, isActive }
- * @returns {Promise}
- */
-export function toggleTestUserStatus(payload) {
-  return request({
-    method: 'post',
-    url: '/scheduling/test-user/toggle-status/',
-    data: payload,
-  })
-}
-
-/**
- * 启用或停用测试用户（新接口）
+ * POST /admin/statusUpdate
  * @param {Object} payload { userId, status }  status: 0=停用, 1=启用
- * @returns {Promise}
+ * @returns {Promise} data: { userId, username, status, expireTime, remainingDays }
  */
 export function updateUserStatus(payload) {
   return request({
     method: 'post',
     url: '/admin/statusUpdate',
-    data: payload,
-  })
-}
-
-// ========== 提交排程结果（完成排程） ==========
-
-/**
- * 提交排程结果（最后一步：完成排程）
- * @param {Object} payload { solveStatus, solveElapsed, isOptimal }
- * @returns {Promise}
- */
-export function submitScheduleResult(payload) {
-  return request({
-    method: 'post',
-    url: '/scheduling/result/',
-    data: payload,
-  })
-}
-
-/**
- * 提交整个排程任务（一次性提交所有步骤数据）
- * @param {Object} payload { sheetData, modelConfig, solveResult }
- * @returns {Promise}
- */
-export function submitFullSchedule(payload) {
-  return request({
-    method: 'post',
-    url: '/scheduling/submit/',
     data: payload,
   })
 }

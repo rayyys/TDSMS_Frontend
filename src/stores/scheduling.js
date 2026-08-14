@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 
 import { SHEET_NAMES, OPTIMIZATION_GOALS, SOLVE_TIME_OPTIONS } from '@/config/schedulingConfig'
-import { getSolveLogs, getSolveStatus, stopSolve as stopSolveApi } from '@/api/scheduling'
+import { getSolveTaskLogs, getSolveTask, stopSolveTask as stopSolveApi } from '@/api/scheduling'
 import { saveToSession, loadFromSession, clearSession } from '@/views/home/useSessionState'
 
 // 工作流步骤定义
@@ -93,9 +93,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       restored[name] = { columns, rows, annotated }
     }
     sheetDataMap.value = restored
-    if (restored[activeSheet.value]) {
-      // activeSheet 存在
-    } else {
+    // activeSheet 不在已恢复数据中时，回退到第一个 Sheet
+    if (!restored[activeSheet.value]) {
       const first = Object.keys(restored)[0]
       if (first) activeSheet.value = first
     }
@@ -185,7 +184,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const priority = ref(saved?.priority ?? 0)
   const maxProducTime = ref(saved?.maxProducTime ?? null) // 最大生产时间（来自 /solves/producTime）
   const fileName = ref(saved?.fileName ?? '') // 上传文件名称（与 taskId 同级）
-  const selectedTarget = ref('a')
 
   // —— 模型构建新结构配置（生产规则 + 人员容量，仅用于页面展示与持久化） ——
   // 1. 排产时间设置
@@ -205,7 +203,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     saved?.eveningShiftCapacity ?? { 配料: 3, 压片: 2, 包衣: 2, 包装: 3 },
   )
 
-  const optimizationGoalOptions = OPTIMIZATION_GOALS
   const solveTimeOptions = SOLVE_TIME_OPTIONS
 
   // 获取当前选中的优化目标标签
@@ -326,14 +323,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     const pad = (n) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
-  function formatDateTimeLocal(d) {
-    const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
-  function formatDate(d) {
-    const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  }
 
   // —— 模型求解状态 ——
   const solveStatus = ref(saved?.solveStatus ?? 'idle') // idle | running | stopped | done
@@ -359,7 +348,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const solveStartTime = ref(null)
   const solveElapsed = ref(saved?.solveElapsed ?? 0) // 秒
   // 后端返回的求解任务信息
-  const solveInfo = ref(saved?.solveInfo ?? null) // { taskId, solveId, solveNo }
+  const solveInfo = ref(saved?.solveInfo ?? null) // { solveTaskId, importId, solveStatus, ... }
   const hasFeasibleSolution = ref(false)
   const isOptimal = ref(false)
 
@@ -375,8 +364,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   let elapsedTimer = null
   // 运行期间定时持久化定时器（每30秒保存一次，确保刷新前数据不丢失）
   let persistTimer = null
-  // 防竞态标志：超时处理中进行中，防止 pollTimer 和 elapsedTimer 冲突
-  const isStopping = false
 
   function startSolve() {
     if (solveStatus.value === 'running') return
@@ -396,10 +383,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     // —— 状态轮询：每 30 秒从后端拉取求解状态 ——
     pollTimer = setInterval(async () => {
       if (solveStatus.value !== 'running') return
-      const sid = solveInfo.value?.solveId
+      const sid = solveInfo.value?.solveTaskId
       if (!sid) return
       try {
-        const res = await getSolveStatus({ solveId: sid })
+        const res = await getSolveTask({ solveTaskId: sid })
         const result = res?.data?.data
         if (res?.data?.success && result) {
           // 根据后端 startTime 更新运行时长（当前北京时间 - 任务开始时间）
@@ -432,10 +419,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     // —— 日志轮询：每 30 秒从后端拉取最新求解日志 ——
     logTimer = setInterval(async () => {
       if (solveStatus.value !== 'running') return
-      const sid = solveInfo.value?.solveId
+      const sid = solveInfo.value?.solveTaskId
       if (!sid) return
       try {
-        const res = await getSolveLogs({ solveId: sid })
+        const res = await getSolveTaskLogs({ solveTaskId: sid })
         // 响应格式：{ success: true, data: [{ id, logContent, createTime }, ...] }
         const logs = res?.data?.data
         if (res?.data?.success && Array.isArray(logs) && logs.length > 0) {
@@ -460,17 +447,15 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         // 先更新本地状态为已停止
         finishSolve(false)
         // finishSolve 完成后，按顺序调用 stop 接口和 status 接口
-        // console.log('断点1')
-        const sid = solveInfo.value?.solveId
+        const sid = solveInfo.value?.solveTaskId
         if (sid) {
           try {
-            // console.log('断点2')
-            await stopSolveApi({ solveId: sid })
+            await stopSolveApi({ solveTaskId: sid })
           } catch {
             // stop 接口调用异常，不影响后续流程
           }
           try {
-            const statusRes = await getSolveStatus({ solveId: sid })
+            const statusRes = await getSolveTask({ solveTaskId: sid })
             const statusData = statusRes?.data?.data
             if (statusRes?.data?.success && statusData) {
               if (statusData.startTime) {
@@ -485,23 +470,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             }
           } catch {
             // status 接口调用异常，静默处理
-          }
-          try {
-            // console.log('[debug] getSolveLogs 开始请求', sid)
-            const logsRes = await getSolveLogs({ solveId: sid })
-            // console.log('[debug] getSolveLogs 响应', logsRes)
-            const logs = logsRes?.data?.data
-            if (logsRes?.data?.success && Array.isArray(logs) && logs.length > 0) {
-              // ...
-            } else {
-              console.log('[debug] getSolveLogs 条件不满足', {
-                success: logsRes?.data?.success,
-                isArray: Array.isArray(logs),
-                length: logs?.length,
-              })
-            }
-          } catch (e) {
-            // console.error('[debug] getSolveLogs 异常', e)
           }
         }
       }
@@ -576,7 +544,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
    */
   function resumePolling() {
     if (solveStatus.value !== 'running') return
-    const sid = solveInfo.value?.solveId
+    const sid = solveInfo.value?.solveTaskId
     if (!sid) return
 
     // 先清理可能残留的旧定时器，避免重复创建导致计时加速
@@ -586,7 +554,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     pollTimer = setInterval(async () => {
       if (solveStatus.value !== 'running') return
       try {
-        const res = await getSolveStatus({ solveId: sid })
+        const res = await getSolveTask({ solveTaskId: sid })
         const result = res?.data?.data
         if (res?.data?.success && result) {
           // 根据后端 startTime 更新运行时长（当前北京时间 - 任务开始时间）
@@ -617,7 +585,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     logTimer = setInterval(async () => {
       if (solveStatus.value !== 'running') return
       try {
-        const res = await getSolveLogs({ solveId: sid })
+        const res = await getSolveTaskLogs({ solveTaskId: sid })
         const logs = res?.data?.data
         if (res?.data?.success && Array.isArray(logs) && logs.length > 0) {
           // 直接用最新获取的后端日志覆盖原有后端日志内容
@@ -641,15 +609,15 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         // 先更新本地状态为已停止
         finishSolve(false)
         // finishSolve 完成后，按顺序调用 stop 接口和 status 接口
-        const sid = solveInfo.value?.solveId
+        const sid = solveInfo.value?.solveTaskId
         if (sid) {
           try {
-            await stopSolveApi({ solveId: sid })
+            await stopSolveApi({ solveTaskId: sid })
           } catch {
             // stop 接口调用异常，不影响后续流程
           }
           try {
-            const statusRes = await getSolveStatus({ solveId: sid })
+            const statusRes = await getSolveTask({ solveTaskId: sid })
             const statusData = statusRes?.data?.data
             if (statusRes?.data?.success && statusData) {
               if (statusData.startTime) {
@@ -666,7 +634,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             // status 接口调用异常，静默处理
           }
           try {
-            const logsRes = await getSolveLogs({ solveId: sid })
+            const logsRes = await getSolveTaskLogs({ solveTaskId: sid })
             const logs = logsRes?.data?.data
             if (logsRes?.data?.success && Array.isArray(logs) && logs.length > 0) {
               // 超时停止前，用后端最新日志覆盖后端日志内容
@@ -758,18 +726,18 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || solveStatus.value !== 'running') return
-      const sid = solveInfo.value?.solveId
+      const sid = solveInfo.value?.solveTaskId
       if (!sid) return
       // 切回时标记 loading，等待后端返回后更新
       syncingElapsed.value = true
-      getSolveStatus({ solveId: sid })
+      getSolveTask({ solveTaskId: sid })
         .then((res) => {
           const result = res?.data?.data
           if (!res?.data?.success || !result) return
-          // 1. 优先用 endTime - startTime 计算精确时长（求解已结束的情况）
-          if (result.startTime && result.endTime) {
+          // 1. 优先用 finishTime - startTime 计算精确时长（求解已结束的情况）
+          if (result.startTime && result.finishTime) {
             const start = new Date(result.startTime).getTime()
-            const end = new Date(result.endTime).getTime()
+            const end = new Date(result.finishTime).getTime()
             if (!isNaN(start) && !isNaN(end)) {
               solveElapsed.value = Math.floor((end - start) / 1000)
               // 已结束则直接同步状态，无需再走 finishSolve
@@ -786,7 +754,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
               return
             }
           }
-          // 2. 无 endTime（求解仍在进行），用 startTime 校准当前时长
+          // 2. 无 finishTime（求解仍在进行），用 startTime 校准当前时长
           if (result.startTime) {
             const start = new Date(result.startTime).getTime()
             if (!isNaN(start)) {
@@ -850,13 +818,11 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     earliestStartTime,
     deadlineDate,
     maxSolveTime,
-    optimizationGoalOptions,
     solveTimeOptions,
     selectedGoalLabel,
     priority,
     maxProducTime,
     fileName,
-    selectedTarget,
     // 新结构配置：生产规则 + 人员容量
     productionMonth,
     continuousRunLimit,

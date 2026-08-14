@@ -107,7 +107,7 @@ async function login() {
   display: flex;
   align-items: center;
   justify-content: center;
-  // 背景：轮胎工厂实景图（用相对路径避免 less 中 @ 被误判为变量）
+  // 背景：药品生产车间实景图（用相对路径避免 less 中 @ 被误判为变量）
   background: url('../img/背景图片@2x.jpg') center center / cover no-repeat;
   position: relative;
 

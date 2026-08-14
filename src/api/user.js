@@ -8,14 +8,6 @@ export function login(data) {
   })
 }
 
-export function register(data) {
-  return request({
-    method: 'post',
-    url: '/user/register/',
-    data,
-  })
-}
-
 export function logout(data) {
   return request({
     method: 'post',

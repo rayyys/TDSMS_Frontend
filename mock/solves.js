@@ -44,7 +44,7 @@ function computeStatus(session) {
 export default [
   // 提交模型求解（开启求解）
   {
-    url: '/ivsms/solves/start',
+    url: '/tdsms/solves/start',
     method: 'post',
     timeout: 800,
     response: ({ body }) => {
@@ -72,7 +72,7 @@ export default [
   },
   // 查询求解状态（前端每 30s 轮询一次）
   {
-    url: '/ivsms/solves/status',
+    url: '/tdsms/solves/status',
     method: 'get',
     timeout: 200,
     response: ({ query }) => {
@@ -109,7 +109,7 @@ export default [
   },
   // 查询求解日志
   {
-    url: '/ivsms/solves/logs',
+    url: '/tdsms/solves/logs',
     method: 'get',
     timeout: 200,
     response: ({ query }) => {
@@ -133,7 +133,7 @@ export default [
   },
   // 查询求解参数（用于恢复旧任务）
   {
-    url: '/ivsms/solves/paramInfo',
+    url: '/tdsms/solves/paramInfo',
     method: 'get',
     timeout: 200,
     response: ({ query }) => {
@@ -161,7 +161,7 @@ export default [
   },
   // 获取最大生产时间（模型构建页用于校验时间间隔）
   {
-    url: '/ivsms/solves/producTime',
+    url: '/tdsms/solves/producTime',
     method: 'get',
     timeout: 300,
     response: () => {
@@ -171,7 +171,7 @@ export default [
   },
   // 停止求解
   {
-    url: '/ivsms/solves/stop',
+    url: '/tdsms/solves/stop',
     method: 'post',
     timeout: 300,
     response: ({ body }) => {
@@ -185,14 +185,14 @@ export default [
   },
   // 导出求解结果（返回 xlsx 文件流）
   {
-    url: '/ivsms/solves/resultExport',
+    url: '/tdsms/solves/resultExport',
     method: 'post',
     rawResponse(req, res) {
       const workbook = XLSX.utils.book_new()
       const sheet = XLSX.utils.aoa_to_sheet([
         ['设备编号', '设备名称', '订单编号', '产品名称', '计划数量', '开始时间', '结束时间'],
-        ['V001', '硫化机1号', 'PO20260811001', '子午线轮胎 205/55R16', 120, '2026-08-11 08:00', '2026-08-11 18:00'],
-        ['V002', '硫化机2号', 'PO20260811002', '子午线轮胎 225/45R17', 150, '2026-08-11 09:00', '2026-08-11 20:00'],
+        ['V001', '压片机1号', 'PO20260811001', '阿莫西林片 0.25g', 120, '2026-08-11 08:00', '2026-08-11 18:00'],
+        ['V002', '压片机2号', 'PO20260811002', '布洛芬缓释片 0.3g', 150, '2026-08-11 09:00', '2026-08-11 20:00'],
       ])
       XLSX.utils.book_append_sheet(workbook, sheet, '排程结果')
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })

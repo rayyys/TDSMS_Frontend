@@ -1,10 +1,6 @@
 <template>
   <div class="header-el">
     <div class="brand">
-      <!-- 圆形 Logo：使用项目内置轮胎图标 -->
-      <span class="brand-logo">
-        <!-- <img src="@/img/轮胎icon.svg" alt="logo" /> -->
-      </span>
       <span class="brand-name">片剂药物智能排程系统</span>
     </div>
     <div class="right">
@@ -27,6 +23,15 @@
           <span class="header-tab-underline"></span>
         </div>
       </div>
+      <!-- 开发调试开关：跳过权限校验，后端未就绪时可访问受限页面 -->
+      <div
+        v-if="authStore.isLoggedIn"
+        class="dev-skip-auth"
+        title="开发调试用：开启后可访问账号管理等受限页面"
+      >
+        <span class="dev-skip-auth-label">跳过权限</span>
+        <el-switch v-model="skipAuth" size="small" @change="handleToggleSkip" />
+      </div>
       <div v-if="authStore.isLoggedIn" class="user-dropdown">
         <span class="user-info" @click="showMenu = !showMenu">
           <!-- 圆形头像（固定像素，不随 rem 缩放） -->
@@ -43,9 +48,11 @@
           }}</span>
           <el-icon><ArrowDown /></el-icon>
         </span>
-        <div v-if="showMenu" class="dropdown-menu" @click.stop>
-          <div v-if="authStore.isAdmin" class="dropdown-item" @click="goAccount">
-            <el-icon><Setting /></el-icon>
+        <!-- v-show 绑定 showMenu：点击头像切换显示，点击外部/菜单项后自动收起 -->
+        <div class="dropdown-menu" v-show="showMenu" @click.stop>
+          <!-- 账号管理：管理员可见；开发调试开关开启时对所有人可见，便于联调 -->
+          <div v-if="isAdminVisible" class="dropdown-item" @click="goToAccount">
+            <el-icon><UserFilled /></el-icon>
             <span>账号管理</span>
           </div>
           <div class="dropdown-item" @click="handleLogout">
@@ -62,10 +69,11 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowDown, SwitchButton, Setting } from '@element-plus/icons-vue'
+import { ArrowDown, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { logout as logoutApi } from '@/api/user'
+import { isSkipAuthEnabled, setSkipAuthEnabled } from '@/utils/authUser'
 
 const router = useRouter()
 const route = useRoute()
@@ -73,6 +81,18 @@ const authStore = useAuthStore()
 const schedulingStore = useSchedulingStore()
 
 const showMenu = ref(false)
+
+// 开发调试开关：开启后绕过路由守卫，可访问账号管理等受限页面（状态持久化到 localStorage）
+const skipAuth = ref(isSkipAuthEnabled())
+
+// 账号管理入口可见性：真实管理员，或开发调试开关开启
+const isAdminVisible = computed(() => authStore.isAdmin || skipAuth.value)
+
+// 切换开发调试开关
+function handleToggleSkip(val) {
+  setSkipAuthEnabled(val)
+  ElMessage.success(val ? '已开启跳过权限，可访问任何页面' : '已关闭跳过权限')
+}
 
 // 部门/角色信息：优先展示部门名称，其次取角色字段兜底
 const userDept = computed(() => authStore.user?.departmentName || '部门')
@@ -105,9 +125,11 @@ function goToTab(tabKey) {
   }
 }
 
-function goAccount() {
+// 跳转账号管理页面（仅管理员可见入口），跳转前关闭下拉菜单
+function goToAccount() {
   showMenu.value = false
-  router.push({ name: 'AccountManagement' })
+  if (route.path === '/account') return
+  router.push('/account')
 }
 
 async function handleLogout() {
@@ -159,18 +181,6 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
-
-    .brand-logo {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-
-      img {
-        width: 32px;
-        height: 32px;
-        object-fit: contain;
-      }
-    }
 
     .brand-name {
       font-size: 1.45rem;
@@ -239,6 +249,19 @@ onBeforeUnmount(() => {
         &.active .header-tab-underline {
           transform: scaleX(1);
         }
+      }
+    }
+
+    // 开发调试开关：跳过权限校验（后端未就绪时用于联调）
+    .dev-skip-auth {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #fff;
+
+      .dev-skip-auth-label {
+        font-size: 0.95rem;
+        white-space: nowrap;
       }
     }
 

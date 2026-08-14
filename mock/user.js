@@ -8,7 +8,7 @@
 
 export default [
   {
-    url: '/ivsms/auth/login',
+    url: '/tdsms/auth/login',
     method: 'post',
     timeout: 600,
     // 登录需要动态返回 200/401，故用 rawResponse 手动控制状态码
@@ -48,7 +48,7 @@ export default [
     },
   },
   {
-    url: '/ivsms/auth/logout',
+    url: '/tdsms/auth/logout',
     method: 'post',
     timeout: 300,
     response: () => {
@@ -56,7 +56,7 @@ export default [
     },
   },
   {
-    url: '/ivsms/user/register/',
+    url: '/tdsms/user/register/',
     method: 'post',
     response: () => {
       return { success: true, code: 0, message: '注册成功', data: {} }

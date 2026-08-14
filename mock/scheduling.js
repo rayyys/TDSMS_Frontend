@@ -6,7 +6,7 @@
 export default [
   // 提交模型构建配置
   {
-    url: '/ivsms/scheduling/model-build/',
+    url: '/tdsms/scheduling/model-build/',
     method: 'post',
     timeout: 500,
     response: async ({ body }) => {
@@ -15,7 +15,7 @@ export default [
   },
   // 提交排程结果（完成排程）
   {
-    url: '/ivsms/scheduling/result/',
+    url: '/tdsms/scheduling/result/',
     method: 'post',
     timeout: 600,
     response: async ({ body }) => {
@@ -24,7 +24,7 @@ export default [
   },
   // 提交整个排程任务
   {
-    url: '/ivsms/scheduling/submit/',
+    url: '/tdsms/scheduling/submit/',
     method: 'post',
     timeout: 600,
     response: async () => {
@@ -33,7 +33,7 @@ export default [
   },
   // 启用或停用测试用户（旧接口，已由 /admin/statusUpdate 取代，此处保留兜底）
   {
-    url: '/ivsms/scheduling/test-user/toggle-status/',
+    url: '/tdsms/scheduling/test-user/toggle-status/',
     method: 'post',
     timeout: 400,
     response: async ({ body }) => {

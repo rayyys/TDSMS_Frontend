@@ -3,9 +3,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { VideoPlay, VideoPause, Lock, Download } from '@element-plus/icons-vue'
 import { useSchedulingStore } from '@/stores/scheduling'
 import {
-  stopSolve as stopSolveApi,
-  getSolveStatus as getSolveStatusApi,
-  exportSolveResult as exportSolveResultApi,
+  stopSolveTask as stopSolveApi,
+  getSolveTask as getSolveTaskApi,
+  exportSolveTaskResult as exportSolveResultApi,
 } from '@/api/scheduling'
 
 // 优先级选项映射（与模型构建页一致）
@@ -167,8 +167,8 @@ export function useModelSolve() {
     if (st !== 'running') return
 
     // 校验是否有求解任务 ID
-    const solveId = schedulingStore.solveInfo?.solveId
-    if (!solveId) {
+    const solveTaskId = schedulingStore.solveInfo?.solveTaskId
+    if (!solveTaskId) {
       ElMessage.error('未获取到求解任务信息，无法停止')
       return
     }
@@ -183,8 +183,8 @@ export function useModelSolve() {
           distinguishCancelAndClose: true,
         })
         // 先调停止接口，完成后再查询最新状态
-        await stopSolveApi({ solveId })
-        const statusRes = await getSolveStatusApi({ solveId })
+        await stopSolveApi({ solveTaskId })
+        const statusRes = await getSolveTaskApi({ solveTaskId })
         const statusData = statusRes?.data?.data
         if (statusData?.hasPartialResult !== undefined) {
           schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
@@ -209,8 +209,8 @@ export function useModelSolve() {
         stoppingLoading.value = true
         try {
           // 先调停止接口，完成后再查询最新状态
-          await stopSolveApi({ solveId })
-          const statusRes = await getSolveStatusApi({ solveId })
+          await stopSolveApi({ solveTaskId })
+          const statusRes = await getSolveTaskApi({ solveTaskId })
           const statusData = statusRes?.data?.data
           if (statusData?.hasPartialResult !== undefined) {
             schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
@@ -227,8 +227,8 @@ export function useModelSolve() {
 
       // 已是最优：不应出现（最优会自动停止），兜底处理
       // 先调停止接口，完成后再查询最新状态
-      await stopSolveApi({ solveId })
-      const statusRes = await getSolveStatusApi({ solveId })
+      await stopSolveApi({ solveTaskId })
+      const statusRes = await getSolveTaskApi({ solveTaskId })
       const statusData = statusRes?.data?.data
       if (statusData?.hasPartialResult !== undefined) {
         schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
@@ -263,14 +263,14 @@ export function useModelSolve() {
       return
     }
 
-    const solveId = schedulingStore.solveInfo?.solveId
-    if (!solveId) {
+    const solveTaskId = schedulingStore.solveInfo?.solveTaskId
+    if (!solveTaskId) {
       ElMessage.error('未获取到求解任务信息，无法导出')
       return
     }
 
     try {
-      const res = await exportSolveResultApi({ solveId })
+      const res = await exportSolveResultApi({ solveTaskId })
       // 从响应中获取文件流（res.data 为 Blob）
       const blob = res.data
       if (!blob || blob.size === 0) {

@@ -1,15 +1,13 @@
 import { computed, ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { useStepNav, STEP_ROUTES } from '../useStepNav'
 import {
-  submitModelSolve,
-  getSolveStatus,
-  getSolveLogs,
-  getSolveParamInfo,
-  stopSolve,
-  getProducTime,
+  startSolveTask,
+  getSolveTask,
+  getSolveTaskLogs,
+  stopSolveTask,
 } from '@/api/scheduling'
 
 export function useModelBuild() {
@@ -86,22 +84,6 @@ export function useModelBuild() {
     if (schedulingStore.solveStatus === 'idle' || schedulingStore.solveStatus === 'done') {
       schedulingStore.resetScheduleDefaults()
     }
-
-    // 获取最大生产时间（用于构建模型时判断开始时间和交期时间的间隔）
-    const fileId = schedulingStore.taskInfo?.fileId
-    if (fileId) {
-      getProducTime({ fileId })
-        .then((res) => {
-          const result = res?.data
-          if (result?.success && Array.isArray(result?.data)) {
-            // 接口返回 data: [273]，取第一个值作为最大生产时间
-            schedulingStore.maxProducTime = result.data[0]
-          }
-        })
-        .catch(() => {
-          // 静默处理，不影响页面正常渲染
-        })
-    }
   })
 
   // 开始求解按钮 loading 状态（防止重复点击）
@@ -144,36 +126,51 @@ export function useModelBuild() {
       return
     }
 
-    // 组装请求参数
-    const taskId = schedulingStore.taskInfo?.taskId
-    if (!taskId) {
+    // 获取 importId（由 /task/import 或 /tasks/historyImport 返回）
+    const importId = schedulingStore.taskInfo?.importId
+    if (!importId) {
       ElMessage.warning('未获取到任务ID，请重新上传文件')
       return
     }
 
+    // 人员容量中文键 → 英文键映射（与接口文档 personnelCapacity 字段对齐）
+    const CAPACITY_KEY_MAP = { 配料: 'mixing', 压片: 'tableting', 包衣: 'coating', 包装: 'packaging' }
+    function mapCapacityKeys(capacity) {
+      const result = {}
+      for (const [key, value] of Object.entries(capacity || {})) {
+        result[CAPACITY_KEY_MAP[key] || key] = value
+      }
+      return result
+    }
+
+    // 按接口文档 POST /solve/start 组装嵌套参数结构
     const payload = {
-      taskId: String(taskId),
-      objectiveWeight: schedulingStore.priority,
-      orderStartTime: schedulingStore.earliestStartTime,
-      dueTime: schedulingStore.deadlineDate,
-      maxSolveTime: Math.round(Number(schedulingStore.maxSolveTime) / 60),
-      // 新结构配置参数（生产规则 + 人员容量）— 同步提交给后端
-      productionMonth: schedulingStore.productionMonth,
-      continuousRunLimit: schedulingStore.continuousRunLimit,
-      cleaningTimeLarge: schedulingStore.cleaningTimeLarge,
-      cleaningTimeSmall: schedulingStore.cleaningTimeSmall,
-      cleaningTimeRegular: schedulingStore.cleaningTimeRegular,
-      shiftDays: schedulingStore.shiftDays,
-      shiftHours: schedulingStore.shiftHours,
-      morningShiftCapacity: { ...schedulingStore.morningShiftCapacity },
-      eveningShiftCapacity: { ...schedulingStore.eveningShiftCapacity },
+      importId,
+      scheduleMonth: schedulingStore.productionMonth,
+      productionRules: {
+        continuousRunLimitDays: schedulingStore.continuousRunLimit,
+        cleaningDuration: {
+          majorCleaningDays: schedulingStore.cleaningTimeLarge,
+          minorCleaningDays: schedulingStore.cleaningTimeSmall,
+          periodicCleaningDays: schedulingStore.cleaningTimeRegular,
+        },
+        shiftConversion: {
+          naturalDays: schedulingStore.shiftDays,
+          shiftCount: schedulingStore.shiftHours,
+        },
+      },
+      personnelCapacity: {
+        dayShift: mapCapacityKeys(schedulingStore.morningShiftCapacity),
+        nightShift: mapCapacityKeys(schedulingStore.eveningShiftCapacity),
+      },
+      solverTimeLimitMinutes: Math.round(Number(schedulingStore.maxSolveTime) / 60),
     }
 
     // 调用后端 API 提交求解
     try {
-      const res = await submitModelSolve(payload)
+      const res = await startSolveTask(payload)
       const result = res?.data
-      if (result?.success) {
+      if (result?.success || result?.code === 202) {
         // 保存后端返回的求解任务信息
         if (result?.data) {
           schedulingStore.solveInfo = result.data
@@ -181,12 +178,12 @@ export function useModelBuild() {
         // 启动求解状态跟踪（设置 running 状态并启动轮询和计时器）
         schedulingStore.startSolve()
 
-        // 5秒后调用 log 接口获取初始日志并渲染到页面
-        const solveId = result.data?.solveId || schedulingStore.solveInfo?.solveId
-        if (solveId) {
+        // 2 秒后调用 logs 接口获取初始日志并渲染到页面
+        const solveTaskId = result.data?.solveTaskId || schedulingStore.solveInfo?.solveTaskId
+        if (solveTaskId) {
           setTimeout(async () => {
             try {
-              const logsRes = await getSolveLogs({ solveId })
+              const logsRes = await getSolveTaskLogs({ solveTaskId, afterLogId: 0 })
               const logs = logsRes?.data?.data
               if (logsRes?.data?.success && Array.isArray(logs) && logs.length > 0) {
                 // 用后端最新日志覆盖后端日志内容，前端日志（如"求解任务已启动"）保留在前端前缀日志中
@@ -210,116 +207,10 @@ export function useModelBuild() {
     } catch (error) {
       const errStatus = error?.response?.status
       const errData = error?.response?.data
-      if ((errStatus === 400 || errStatus === 500) && errData?.data?.solveId) {
-        // 后端返回已有求解任务进行中，弹出确认框让用户选择是否关闭
-        const solveId = errData.data.solveId
-        try {
-          await ElMessageBox.confirm(
-            `您即将发起新的求解请求。这将中断当前正在进行的任务（ID: ${solveId}），且原任务进度无法恢复。确定要覆盖吗？`,
-            '任务冲突',
-            {
-              confirmButtonText: '开始新任务',
-              cancelButtonText: '继续旧任务',
-              type: 'warning',
-              distinguishCancelAndClose: true,
-            },
-          )
-          // 用户点击确认，调用 stop 接口关闭该求解任务
-          solvingLoading.value = true
-          await stopSolve({ solveId })
-          // 等待 0.5 秒后，自动重试完整的"开始求解"流程
-          await new Promise((resolve) => setTimeout(resolve, 1500))
-          await handleStartSolve()
-        } catch (e) {
-          // 用户点击"继续旧任务"（cancel），加载旧任务数据并跳转到求解页
-          if (e === 'cancel') {
-            solvingLoading.value = true
-            try {
-              // 1. 调用 paramInfo 接口获取旧任务参数
-              const paramRes = await getSolveParamInfo({ solveId })
-              const paramData = paramRes?.data?.data
-              if (paramRes?.data?.success && paramData) {
-                // 填充求解任务信息
-                schedulingStore.solveInfo = {
-                  taskId: paramData.taskId,
-                  solveId: paramData.solveId,
-                  solveNo: paramData.solveNo,
-                }
-                // 回填求解参数（优先级、最大求解时间，后端返回分钟需转为秒）
-                schedulingStore.priority = paramData.objectiveWeight
-                schedulingStore.maxSolveTime = paramData.maxSolveTime * 60
-
-                // 根据后端 solveStatus 设置前端状态
-                // 1=运行中, 2=已完成, 4=已停止
-                const apiStatus = paramData.solveStatus
-                if (apiStatus === 1) {
-                  schedulingStore.solveStatus = 'running'
-                } else if (apiStatus === 2) {
-                  schedulingStore.solveStatus = 'done'
-                  schedulingStore.isOptimal = true
-                  schedulingStore.solveProgress = 100
-                } else {
-                  schedulingStore.solveStatus = 'stopped'
-                }
-
-                // 更新运行时长
-                if (paramData.startTime) {
-                  const start = new Date(paramData.startTime).getTime()
-                  if (!isNaN(start)) {
-                    schedulingStore.solveElapsed = Math.floor((Date.now() - start) / 1000)
-                  }
-                }
-              }
-
-              // 2. 调用 status 接口获取最新状态（覆盖运行时长、可行解等字段）
-              try {
-                const statusRes = await getSolveStatus({ solveId })
-                const statusData = statusRes?.data?.data
-                if (statusRes?.data?.success && statusData) {
-                  if (statusData.hasPartialResult !== undefined) {
-                    schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
-                  }
-                  if (statusData.startTime) {
-                    const start = new Date(statusData.startTime).getTime()
-                    if (!isNaN(start)) {
-                      schedulingStore.solveElapsed = Math.floor((Date.now() - start) / 1000)
-                    }
-                  }
-                }
-              } catch {
-                // status 接口失败不影响整体流程
-              }
-
-              // 3. 调用 logs 接口获取旧任务日志
-              try {
-                const logsRes = await getSolveLogs({ solveId })
-                const logs = logsRes?.data?.data
-                if (logsRes?.data?.success && Array.isArray(logs) && logs.length > 0) {
-                  schedulingStore.backendLogs = logs.map((log) => ({
-                    time: log.createTime ? log.createTime.slice(11, 19) : '',
-                    message: log.logContent || '',
-                  }))
-                }
-              } catch {
-                // logs 接口失败不影响整体流程
-              }
-
-              // 4. 若旧任务仍在运行中，恢复轮询
-              if (schedulingStore.solveStatus === 'running') {
-                schedulingStore.resumePolling()
-              }
-
-              // 5. 跳转到模型求解页
-              await router.push(STEP_ROUTES[3])
-            } catch {
-              ElMessage.error('加载旧任务数据失败，请稍后重试')
-              solvingLoading.value = false
-            }
-          } else {
-            // 用户点击关闭按钮（close），恢复按钮状态
-            solvingLoading.value = false
-          }
-        }
+      if (errStatus === 409) {
+        // 409：当前任务已有正在执行的求解任务，提示用户勿重复提交
+        ElMessage.warning(errData?.message || '当前任务正在求解，请勿重复提交')
+        solvingLoading.value = false
       } else if (errStatus === 401) {
         // 401 已在响应拦截器中统一处理（提示 + 跳转）
         solvingLoading.value = false

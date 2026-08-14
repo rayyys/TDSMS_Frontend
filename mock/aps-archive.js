@@ -1,70 +1,40 @@
 /**
  * APS 排产信息档案 Mock（无后端时前端联调用）
- * 覆盖：档案数据保存 + 品种唯一性校验 + 重复时按品种分组排序
+ * 对齐接口文档：
+ *  - GET  /aps/listQuery  查询当前用户方案列表（数据上传页下拉框数据源）
+ *  - POST /aps/create     新建方案（上传 Excel，后端解析）
  * 注意：响应函数需为同步函数，延迟用 timeout 字段控制。
  */
 
-/**
- * 服务端保存逻辑：
- * 1. 数据校验：检查本次新增行的「品种」是否已存在于其他历史行中
- * 2. 情况一（品种不存在）：保持原位置，正常保存
- * 3. 情况二（品种已存在）：按品种稳定排序，并将新增行移动到对应分组的最下方
- * @param {Object} body { planId, rows, newRowIndex }
- */
-function handleSave({ planId, rows = [], newRowIndex } = {}) {
-  // 新行下标：优先用前端传入值，兜底取最后一行
-  const idx =
-    Number.isInteger(newRowIndex) && newRowIndex >= 0 ? newRowIndex : rows.length - 1
-  const newRow = rows[idx] || null
-  const newProduct = newRow ? String(newRow.product || '').trim() : ''
-
-  // 品种唯一性校验：排除新行自身，在其余行中查找同名品种
-  const duplicate = Boolean(
-    newProduct &&
-      rows.some((r, i) => i !== idx && String(r.product || '').trim() === newProduct),
-  )
-
-  let resultRows = rows
-  let resultNewIndex = idx
-  if (duplicate) {
-    // 情况二：先按品种稳定排序，再将新增行移动至其对应分组的最下方
-    const indexed = rows.map((row, origin) => ({ row, origin }))
-    indexed.sort((a, b) =>
-      String(a.row.product || '').localeCompare(String(b.row.product || ''), 'zh'),
-    )
-    // 剔除新增行后，定位其品种分组末尾位置
-    const withoutNew = indexed.filter((it) => it.origin !== idx)
-    let insertIndex = withoutNew.length
-    for (let i = withoutNew.length - 1; i >= 0; i--) {
-      if (String(withoutNew[i].row.product || '').trim() === newProduct) {
-        insertIndex = i + 1
-        break
-      }
-    }
-    withoutNew.splice(insertIndex, 0, { row: newRow, origin: idx })
-    resultRows = withoutNew.map((it) => it.row)
-    resultNewIndex = insertIndex
-  }
-
-  return {
-    success: true,
-    code: 0,
-    message: duplicate ? '保存成功，检测到品种重复，已按品种分组排序' : '保存成功',
-    data: { rows: resultRows, duplicate, newRowIndex: resultNewIndex },
-  }
-}
-
-// 系统中已存在的 APS 排产信息档案方案（模拟后端持久化数据）
+// 模拟后端持久化的 APS 方案列表（archiveId 为后端主键）
 const archivePlans = [
-  { id: 'plan-1', name: '方案一' },
-  { id: 'plan-2', name: '方案二' },
-  { id: 'plan-3', name: '方案三' },
+  {
+    archiveId: 1,
+    archiveName: '方案一',
+    createTime: '2026-08-01 10:00:00',
+    updateTime: '2026-08-01 10:00:00',
+  },
+  {
+    archiveId: 2,
+    archiveName: '方案二',
+    createTime: '2026-08-02 10:00:00',
+    updateTime: '2026-08-02 10:00:00',
+  },
+  {
+    archiveId: 3,
+    archiveName: '方案三',
+    createTime: '2026-08-03 10:00:00',
+    updateTime: '2026-08-03 10:00:00',
+  },
 ]
 
+// 自增 id 游标，模拟后端主键生成
+let nextArchiveId = 4
+
 export default [
-  // 查询 APS 排产信息档案方案列表
+  // 查询 APS 排产信息档案方案列表（数据上传页下拉框数据源）
   {
-    url: '/ivsms/aps/archive/list',
+    url: '/tdsms/aps/listQuery',
     method: 'get',
     timeout: 400,
     response: () => {
@@ -76,11 +46,28 @@ export default [
       }
     },
   },
-  // 保存 APS 排产信息档案（含品种唯一性校验与排序）
+  // 新建 APS 方案（上传 Excel 文件，后端解析）
   {
-    url: '/ivsms/aps/archive/save',
+    url: '/tdsms/aps/create',
     method: 'post',
     timeout: 600,
-    response: ({ body }) => handleSave(body || {}),
+    response: ({ body }) => {
+      // body 为 FormData 解析后的对象（file 文件流无法在 mock 中解析，仅取 archiveName）
+      const archiveName = String(body?.archiveName || '未命名方案')
+      const archive = {
+        archiveId: nextArchiveId++,
+        archiveName,
+        sourceFileName: 'mock-upload.xlsx',
+        dataCount: 0,
+      }
+      // 追加到列表，便于下次进入下拉框时看到新建的方案
+      archivePlans.push(archive)
+      return {
+        success: true,
+        code: 0,
+        message: '保存成功',
+        data: archive,
+      }
+    },
   },
 ]

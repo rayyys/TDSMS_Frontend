@@ -118,6 +118,7 @@ const {
   triggerFileInput,
   onFileChange,
   onFileDrop,
+  onDownloadTemplate,
   // 工具栏操作
   onSelectionChange,
   onCancelSelection,

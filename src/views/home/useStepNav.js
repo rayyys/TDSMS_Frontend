@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSchedulingStore } from '@/stores/scheduling'
-import { submitScheduleResult, stopSolve as stopSolveApi } from '@/api/scheduling'
+import { stopSolveTask as stopSolveApi } from '@/api/scheduling'
 
 // 步骤与路由的映射
 export const STEP_ROUTES = ['/upload', '/task-data', '/model-build', '/model-solve']
@@ -126,40 +126,15 @@ export function useStepNav() {
         },
       )
       // 若后端正在求解，先通知后端停止，再清前端状态
-      if (schedulingStore.solveStatus === 'running' && schedulingStore.solveInfo?.solveId) {
+      if (schedulingStore.solveStatus === 'running' && schedulingStore.solveInfo?.solveTaskId) {
         try {
-          await stopSolveApi({ solveId: schedulingStore.solveInfo.solveId })
+          await stopSolveApi({ solveTaskId: schedulingStore.solveInfo.solveTaskId })
         } catch {
           // 后端停止失败不阻塞前端重置流程
         }
       }
       schedulingStore.resetAll()
       router.push('/upload')
-    } catch {
-      // 用户取消
-    }
-  }
-
-  // —— 完成排程（导出结果并提交） ——
-  async function handleFinish() {
-    try {
-      await ElMessageBox.confirm('确认导出当前排产结果并结束本次排程？', '完成确认', {
-        type: 'warning',
-      })
-      await submitScheduleResult({
-        solveStatus: schedulingStore.solveStatus,
-        solveElapsed: schedulingStore.solveElapsed,
-        isOptimal: schedulingStore.isOptimal,
-      })
-      ElMessage.success('排产结果已导出（演示：已触发下载）')
-      // 演示：触发一次空文件下载占位
-      const blob = new Blob(['IVSMS 排产结果（演示占位）'], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = '排产结果.txt'
-      a.click()
-      URL.revokeObjectURL(url)
     } catch {
       // 用户取消
     }
@@ -173,7 +148,6 @@ export function useStepNav() {
     handlePrev,
     handleNext,
     handleBackToUpload,
-    handleFinish,
     notifyNextDisabled,
   }
 }

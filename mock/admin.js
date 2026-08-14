@@ -7,17 +7,17 @@
 // 测试用户列表（内存态，创建后会追加）
 let userSeq = 10
 const testUsers = [
-  { userId: 1, username: 'tester01', company: '华东轮胎销售公司', departmentName: '生产部', remainingDays: 25, status: 1, statusName: '正常' },
-  { userId: 2, username: 'tester02', company: '华南汽配集团', departmentName: '质检部', remainingDays: 3, status: 1, statusName: '正常' },
-  { userId: 3, username: 'tester03', company: '西南工程机械', departmentName: '设备部', remainingDays: 0, status: 0, statusName: '已过期' },
-  { userId: 4, username: 'tester04', company: '北方重工', departmentName: '调度中心', remainingDays: 15, status: 1, statusName: '正常' },
-  { userId: 5, username: 'tester05', company: '长三角物流', departmentName: '信息部', remainingDays: 7, status: 1, statusName: '正常' },
+  { userId: 1, username: 'tester01', company: '华东医药销售公司', departmentName: '生产部', remainingDays: 25, status: 1, statusName: '正常' },
+  { userId: 2, username: 'tester02', company: '华南医药集团', departmentName: '质检部', remainingDays: 3, status: 1, statusName: '正常' },
+  { userId: 3, username: 'tester03', company: '西南制药集团', departmentName: '设备部', remainingDays: 0, status: 0, statusName: '已过期' },
+  { userId: 4, username: 'tester04', company: '北方药业集团', departmentName: '调度中心', remainingDays: 15, status: 1, statusName: '正常' },
+  { userId: 5, username: 'tester05', company: '长三角医药', departmentName: '信息部', remainingDays: 7, status: 1, statusName: '正常' },
 ]
 
 export default [
   // 创建测试用户（需要动态返回 400，故用 rawResponse）
   {
-    url: '/ivsms/admin/create',
+    url: '/tdsms/admin/create',
     method: 'post',
     timeout: 600,
     rawResponse(req, res) {
@@ -49,7 +49,7 @@ export default [
   },
   // 查询测试用户列表（分页）
   {
-    url: '/ivsms/admin/query',
+    url: '/tdsms/admin/query',
     method: 'get',
     timeout: 400,
     response: ({ query }) => {
@@ -66,7 +66,7 @@ export default [
   },
   // 更新测试用户有效期
   {
-    url: '/ivsms/admin/expireUpdate',
+    url: '/tdsms/admin/expireUpdate',
     method: 'post',
     timeout: 400,
     response: ({ body }) => {
@@ -82,7 +82,7 @@ export default [
   },
   // 启用或停用测试用户（status: 0=停用, 1=启用）
   {
-    url: '/ivsms/admin/statusUpdate',
+    url: '/tdsms/admin/statusUpdate',
     method: 'post',
     timeout: 400,
     response: ({ body }) => {

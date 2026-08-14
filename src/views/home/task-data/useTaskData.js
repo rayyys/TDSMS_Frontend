@@ -1,8 +1,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useSchedulingStore } from '@/stores/scheduling'
-// 本地静态数据源：由 docs/药业车间分解编排计划表模板.xlsx 解析生成
-import mockTaskData from './mockTaskData'
+import { getTaskDetail } from '@/api/scheduling'
 
 /**
  * 任务数据导入明细页 - composable
@@ -45,6 +45,9 @@ export function useTaskData() {
 
   // —— 表格行 ——
   const rawRows = ref([])
+
+  // 记录在途的任务数据请求 Promise，供「下一步」等待数据加载完成后放行导航
+  let pendingFetch = null
 
   // 任务文件信息（兼容旧版：保留 fileName / uploadTime，供模板可选展示）
   const fileName = computed(() => {
@@ -116,12 +119,11 @@ export function useTaskData() {
     return rows
   })
 
-  // 当前页数据（前端分页，便于筛选实时生效；总条数取过滤后数量）
-  // 需求：始终保持 pageSize 行；不足时用占位行填充空白行，确保表格高度恒定
+  // 当前页数据：服务端已按 page/pageSize 分页返回，rawRows 即为当前页；
+  // 前端再按部门 / 生产计划 / 存货名称做二次筛选。始终保持 pageSize 行，
+  // 不足时用占位行填充空白行，确保表格高度恒定
   const pagedRows = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value
-    const end = start + pageSize.value
-    const rows = filteredRows.value.slice(start, end)
+    const rows = filteredRows.value
     const fillCount = pageSize.value - rows.length
     if (fillCount > 0) {
       // 占位行：_isPlaceholder 标记用于样式区分（隐藏文字但保留行高）
@@ -168,7 +170,10 @@ export function useTaskData() {
     fetchData()
   })
 
-  // 翻页：本地数据下分页由 computed 自动重算，无需重新拉取
+  // 翻页：服务端分页，页码变化时重新请求数据
+  watch(currentPage, () => {
+    fetchData()
+  })
 
   /**
    * 重置筛选 + 搜索
@@ -201,35 +206,72 @@ export function useTaskData() {
       jumpPage.value = ''
       return
     }
-    const maxPage = Math.max(1, Math.ceil(filteredRows.value.length / pageSize.value))
+    const maxPage = Math.max(1, Math.ceil(totalRows.value / pageSize.value))
     currentPage.value = Math.min(page, maxPage)
     jumpPage.value = ''
   }
 
   /**
-   * 加载数据（本地静态数据源）
-   * 直接使用解析自「药业车间分解编排计划表模板.xlsx」的静态数据，不再依赖后端接口；
-   * 筛选 / 搜索 / 分页均由前端 computed 完成。
+   * 加载数据（调用后端 /task/detailQuery 接口）
+   * 服务端按 importId 分页返回已解析保存的计划明细，支持关键词搜索；
+   * 前端在返回的当前页数据上再按部门 / 生产计划 / 存货名称做二次筛选。
+   * 返回在途请求的 Promise，调用方可通过 await 等待数据加载完成。
    */
-  function fetchData() {
-    if (tableLoading.value) return
+  async function fetchData() {
+    // 存在在途请求时直接复用，避免筛选 / 翻页等联动触发重复请求
+    if (pendingFetch) return pendingFetch
+    // 未获取到任务 ID（尚未上传或历史导入），清空数据并提示用户先上传
+    const importId = schedulingStore.taskInfo?.importId
+    if (!importId) {
+      rawRows.value = []
+      totalRows.value = 0
+      return
+    }
     tableLoading.value = true
-    rawRows.value = mockTaskData
-    // 同步数据到 store，使「任务数据」步骤满足下一步前置条件（hasParsedData = true）
-    // 否则页面能显示数据，但 store 的 sheetDataMap 为空，下一步会被拦截
-    schedulingStore.loadParsedData({
-      任务数据: { columns: TABLE_COLUMNS, rows: mockTaskData },
-    })
-    totalRows.value = filteredRows.value.length
-    tableLoading.value = false
+    // 保存本次请求的 Promise（onMounted 触发的加载也存于此），
+    // 「下一步」可通过 ensureDataLoaded 等待其完成后放行导航
+    pendingFetch = (async () => {
+      try {
+        const res = await getTaskDetail({
+          importId,
+          page: currentPage.value,
+          pageSize: pageSize.value,
+          keyword: inputKeyword.value || undefined,
+        })
+        const result = res?.data
+        // 兼容两种返回结构：{ data: { records, total } } 或 { data: { data: { records, total } } }
+        const payload = result?.data ?? result
+        const rows = payload?.records ?? []
+        rawRows.value = Array.isArray(rows) ? rows : []
+        totalRows.value = payload?.total ?? rawRows.value.length
+        // 同步数据到 store，使「任务数据」步骤满足下一步前置条件（hasParsedData = true）
+        // 否则页面能显示数据，但 store 的 sheetDataMap 为空，下一步会被拦截
+        schedulingStore.loadParsedData({
+          任务数据: { columns: TABLE_COLUMNS, rows: rawRows.value },
+        })
+      } catch (err) {
+        ElMessage.error(err?.response?.data?.message || '任务数据加载失败，请稍后重试')
+        rawRows.value = []
+        totalRows.value = 0
+      } finally {
+        tableLoading.value = false
+        pendingFetch = null
+      }
+    })()
+    return pendingFetch
   }
 
-  // 总条数 = 过滤后实际条数（前端筛选影响）
-  watch([filteredRows], () => {
-    if (filteredRows.value.length !== totalRows.value) {
-      totalRows.value = filteredRows.value.length
-    }
-  })
+  /**
+   * 确保任务数据已加载完成，供「下一步」在导航前等待数据就绪
+   * - 已加载完成（hasParsedData 为 true）：直接返回
+   * - 存在在途请求（如 onMounted 触发的加载）：复用该请求等待完成
+   * - 尚未加载：触发一次新的加载请求
+   */
+  async function ensureDataLoaded() {
+    if (schedulingStore.hasParsedData) return
+    if (pendingFetch) return pendingFetch
+    return fetchData()
+  }
 
   onMounted(() => {
     fetchData()
@@ -268,5 +310,6 @@ export function useTaskData() {
     handleReset,
     handleJump,
     fetchData,
+    ensureDataLoaded,
   }
 }

@@ -6,11 +6,11 @@ import { useSchedulingStore } from '@/stores/scheduling'
 import { useStepNav } from '../useStepNav'
 import { isExcelFile } from '@/utils/excelParse'
 import {
-  uploadScheduleFile,
-  downloadExcelTemplate,
-  getHistoryUploadRecords,
-  historyImport,
-  deleteHistoryRecord,
+  importTask,
+  downloadTaskTemplate,
+  getTaskHistory,
+  historyImportTask,
+  deleteTaskHistory,
   getApsArchiveList,
 } from '@/api/scheduling'
 
@@ -47,10 +47,13 @@ export function useDataUpload() {
         ElMessage.error(result.message || '获取APS档案列表失败')
         return
       }
-      const list = result?.data || result || []
+      // 兼容多种返回结构：data 为数组 / data 为 { records } 分页结构 / 字段缺失兜底空数组
+      // 后端未就绪或返回异常时避免 list.map 崩溃
+      const raw = result?.data ?? result
+      const list = Array.isArray(raw) ? raw : Array.isArray(raw?.records) ? raw.records : []
       apsArchiveOptions.value = list.map((item) => ({
-        label: item.name,
-        value: item.id,
+        label: item.archiveName,
+        value: item.archiveId,
       }))
     } catch (err) {
       const status = err?.response?.status
@@ -72,7 +75,37 @@ export function useDataUpload() {
   }
 
   // 页面加载时拉取档案方案，保证数据实时性
-  onMounted(fetchApsArchiveOptions)
+  onMounted(() => {
+    fetchApsArchiveOptions()
+    autoImportTemplate()
+  })
+
+  // mock 模式下进入页面自动导入默认模板文件（docs/药业车间分解编排计划表模板.xlsx），
+  // 便于无后端时直接预览上传与任务数据页内容；非 mock 环境不触发。
+  async function autoImportTemplate() {
+    if (import.meta.env.VITE_USE_MOCK !== 'true') return
+    // 已存在任务信息时不重复导入，避免覆盖用户后续手动上传
+    if (schedulingStore.taskInfo?.importId) return
+    try {
+      const formData = new FormData()
+      formData.append('file', new File([new Blob()], '药业车间分解编排计划表模板.xlsx'))
+      formData.append('remark', '')
+      const res = await importTask(formData)
+      const result = res?.data
+      if (result?.success === false) return
+      const taskData = result?.data || result || {}
+      // 展示已上传文件（mock 返回文档字段 originalFileName）
+      schedulingStore.setUploadedFile({
+        name: taskData.originalFileName || '药业车间分解编排计划表模板.xlsx',
+      })
+      if (taskData.importId) {
+        schedulingStore.setTaskInfo(taskData)
+      }
+      ElMessage.success('已自动导入默认模板文件')
+    } catch (e) {
+      // mock 下自动导入失败时不打扰用户，可手动上传
+    }
+  }
 
   // ==================== 下一步校验 ====================
   function handleNext() {
@@ -152,8 +185,9 @@ export function useDataUpload() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('remark', schedulingStore.taskRemark || '')
+      formData.append('apsArchiveId', apsArchiveId.value)
 
-      const res = await uploadScheduleFile(formData)
+      const res = await importTask(formData)
       const result = res?.data
 
       if (result?.success === false) {
@@ -164,7 +198,7 @@ export function useDataUpload() {
       // 上传成功，才在页面中显示文件
       const taskData = result?.data || result || {}
       schedulingStore.setUploadedFile(file)
-      if (taskData.taskId) {
+      if (taskData.importId) {
         schedulingStore.setTaskInfo(taskData)
       }
       ElMessage.success('文件上传成功')
@@ -190,7 +224,7 @@ export function useDataUpload() {
   // ==================== 下载模板 ====================
   async function downloadTemplate() {
     try {
-      const res = await downloadExcelTemplate()
+      const res = await downloadTaskTemplate()
       const blob = res?.data
       if (!blob || !(blob instanceof Blob)) {
         ElMessage.error('模板下载失败，未获取到文件流')
@@ -248,7 +282,7 @@ export function useDataUpload() {
     if (deletingTaskMap.value[row.taskId]) return // 该文件正在删除中
     deletingTaskMap.value = { ...deletingTaskMap.value, [row.taskId]: true }
     try {
-      const res = await deleteHistoryRecord({ taskId: row.taskId })
+      const res = await deleteTaskHistory({ importId: row.taskId })
       const result = res?.data
       if (result?.success === false) {
         ElMessage.error(result.message || '删除失败')
@@ -297,8 +331,8 @@ export function useDataUpload() {
   async function fetchHistoryList() {
     historyDialogLoading.value = true
     try {
-      const res = await getHistoryUploadRecords({
-        pageNum: historyPageNum.value,
+      const res = await getTaskHistory({
+        page: historyPageNum.value,
         pageSize: historyPageSize.value,
       })
       const result = res?.data
@@ -344,7 +378,7 @@ export function useDataUpload() {
   async function reimportHistory(row) {
     historyDialogLoading.value = true
     try {
-      const res = await historyImport({ sourceTaskId: row.taskId })
+      const res = await historyImportTask({ taskId: row.taskId })
       const result = res?.data
       if (result?.success === false) {
         ElMessage.error(result.message || '导入失败')
@@ -354,7 +388,9 @@ export function useDataUpload() {
       const taskData = result?.data || result || {}
       schedulingStore.setUploadedFile({ name: taskData.fileName || row.fileName })
       schedulingStore.taskRemark = taskData.taskRemark || row.taskRemark || ''
+      // 历史导入返回 taskId，同时作为 importId 供后续 /solve/start 使用
       if (taskData.taskId) {
+        taskData.importId = taskData.importId ?? taskData.taskId
         schedulingStore.setTaskInfo(taskData)
       }
       importMode.value = 'manual'

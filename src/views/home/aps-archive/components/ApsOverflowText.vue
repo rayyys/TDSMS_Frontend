@@ -37,6 +37,9 @@ const props = defineProps({
   },
 })
 
+// 单元格文本元素引用（模板 ref，用于测量文本是否溢出两行）
+const textRef = ref(null)
+
 // 是否溢出两行（内容超过两行出现省略号，需要 tooltip 展示完整内容）
 const overflow = ref(false)
 

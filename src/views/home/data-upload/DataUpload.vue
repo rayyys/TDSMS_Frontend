@@ -7,8 +7,8 @@
 
     <div class="mode-switch-row">
       <el-radio-group v-model="importMode" @change="onImportModeChange">
-        <el-radio label="manual">新建任务</el-radio>
-        <el-radio label="history">历史记录导入</el-radio>
+        <el-radio value="manual">新建任务</el-radio>
+        <el-radio value="history">历史记录导入</el-radio>
       </el-radio-group>
     </div>
 
@@ -107,7 +107,7 @@
       <AdaptiveTableContainer
         :columns="historyTableColumns"
         class="adaptive-wrapper"
-        base-width="1200"
+        :base-width="1200"
       >
         <template #default="{ densityClass, headerStyle, bodyStyle, getColWidth }">
           <el-table
