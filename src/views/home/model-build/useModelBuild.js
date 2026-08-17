@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { useStepNav, STEP_ROUTES } from '../useStepNav'
+import { MODEL_BUILD_DEFAULTS } from './modelBuildDefaults'
 import {
   startSolveTask,
   getSolveTask,
@@ -27,17 +28,12 @@ export function useModelBuild() {
     return '已进行求解' // done
   })
 
-  // 校验排产时间输入：running/done 仅跳转无需校验，idle/stopped 需校验
+  // 是否允许开始求解：running/done 直接放行跳转；其余状态需所有必填项有效且无时间规则冲突
   const canStartSolve = computed(() => {
+    if (solvingLoading.value) return false
     if (schedulingStore.solveStatus === 'running' || schedulingStore.solveStatus === 'done')
       return true
-    return (
-      !hasTimeRuleError.value &&
-      schedulingStore.earliestStartTime &&
-      schedulingStore.deadlineDate &&
-      schedulingStore.maxSolveTime !== null &&
-      schedulingStore.maxSolveTime !== undefined
-    )
+    return !hasRequiredFieldError.value && !hasTimeRuleError.value
   })
 
   // 最小时间间隔（单位毫秒），默认30分钟，若后端返回了最大生产时间则使用该值
@@ -64,6 +60,53 @@ export function useModelBuild() {
   // 合并两条时间规则，供按钮禁用等逻辑使用
   const hasTimeRuleError = computed(() => hasDeadlineDateError.value || hasIntervalError.value)
 
+  // 部门下拉选项：从任务数据的「部门」列（上传 Excel 解析而来）去重提取
+  const departmentOptions = computed(() => {
+    const rows = schedulingStore.sheetDataMap['任务数据']?.rows || []
+    const set = new Set()
+    rows.forEach((row) => {
+      const dept = row?.department
+      if (dept) set.add(String(dept).trim())
+    })
+    return Array.from(set)
+  })
+
+  // ===== 必填项实时校验 =====
+  // 单个字段有效性：字符串需非空，数值需为有效数字（null/undefined/NaN 视为无效）
+  function isRequiredFieldValid(value) {
+    if (value === null || value === undefined) return false
+    if (typeof value === 'number') return !Number.isNaN(value)
+    if (typeof value === 'string') return value.trim() !== ''
+    return false
+  }
+
+  // 必填字段校验规则（标签与页面展示一致，用于实时校验与缺失提示）
+  const REQUIRED_FIELD_CHECKS = [
+    { label: '部门', value: () => schedulingStore.selectedDepartment },
+    { label: '排产月份', value: () => schedulingStore.productionMonth },
+    { label: '连续运行上限', value: () => schedulingStore.continuousRunLimit },
+    { label: '大清场', value: () => schedulingStore.cleaningTimeLarge },
+    { label: '小清场', value: () => schedulingStore.cleaningTimeSmall },
+    { label: '定期清场', value: () => schedulingStore.cleaningTimeRegular },
+    { label: '班次换算-天数', value: () => schedulingStore.shiftDays },
+    { label: '班次换算-班时', value: () => schedulingStore.shiftHours },
+    { label: '配料用人', value: () => schedulingStore.morningShiftCapacity?.['配料'] },
+    { label: '压片用人', value: () => schedulingStore.morningShiftCapacity?.['压片'] },
+    { label: '包衣用人', value: () => schedulingStore.morningShiftCapacity?.['包衣'] },
+    { label: '包装用人', value: () => schedulingStore.morningShiftCapacity?.['包装'] },
+    { label: '最大求解时间', value: () => schedulingStore.maxSolveTime },
+  ]
+
+  // 当前缺失或无效的必填字段标签列表（响应式实时计算）
+  const missingRequiredFields = computed(() =>
+    REQUIRED_FIELD_CHECKS.filter(({ value }) => !isRequiredFieldValid(value())).map(
+      ({ label }) => label,
+    ),
+  )
+
+  // 是否存在必填项缺失或无效
+  const hasRequiredFieldError = computed(() => missingRequiredFields.value.length > 0)
+
   // 新增的优先级选项数据（对应设计稿中的 5 个卡片）
   const priorityOptions = [
     { label: '均衡考虑', desc: 'A的权重与B相等', value: 0 },
@@ -89,13 +132,9 @@ export function useModelBuild() {
   // 开始求解按钮 loading 状态（防止重复点击）
   const solvingLoading = ref(false)
 
-  // 按钮禁用条件：loading中 或 时间规则不满足（running/done 允许跳转不禁用）
-  const isSolveBtnDisabled = computed(() => {
-    if (solvingLoading.value) return true
-    if (schedulingStore.solveStatus === 'running' || schedulingStore.solveStatus === 'done')
-      return false
-    return hasTimeRuleError.value
-  })
+  // 按钮原生禁用：仅在提交过程中防止重复点击
+  // 校验未通过时不启用原生禁用，保留可点击状态以给出友好提示（视觉置灰由 canStartSolve 控制）
+  const isSolveBtnDisabled = computed(() => solvingLoading.value)
 
   async function handleStartSolve() {
     const status = schedulingStore.solveStatus
@@ -108,14 +147,18 @@ export function useModelBuild() {
 
     // idle / stopped：走完整提交流程
 
-    // 校验排产时间输入是否完整
-    if (!canStartSolve.value) {
+    // 校验必填项：存在缺失或无效项时，列出具体字段引导用户完善
+    if (hasRequiredFieldError.value) {
+      ElMessage.warning(`请先完善以下必填项：${missingRequiredFields.value.join('、')}`)
+      return
+    }
+
+    // 校验排产时间规则（交期相关，页面默认有效，保留兜底）
+    if (hasTimeRuleError.value) {
       if (hasDeadlineDateError.value) {
         ElMessage.error('订单不确定性交期不能早于订单加工开始时间')
       } else if (hasIntervalError.value) {
         ElMessage.error('时间过短，无法满足排产需求')
-      } else {
-        ElMessage.error('请完成任务排产时间设置')
       }
       return
     }
@@ -161,7 +204,6 @@ export function useModelBuild() {
       },
       personnelCapacity: {
         dayShift: mapCapacityKeys(schedulingStore.morningShiftCapacity),
-        nightShift: mapCapacityKeys(schedulingStore.eveningShiftCapacity),
       },
       solverTimeLimitMinutes: Math.round(Number(schedulingStore.maxSolveTime) / 60),
     }
@@ -233,14 +275,24 @@ export function useModelBuild() {
     return `${year}年${month}月`
   })
 
-  // 恢复页面默认参数（生产规则 + 班次换算）
+  // 恢复页面默认参数：填入集中管理的默认值，其余参数字段清空
+  // 默认值统一在 modelBuildDefaults.js 中维护，修改即可生效
   function handleResetDefaults() {
-    schedulingStore.continuousRunLimit = 5.5
-    schedulingStore.cleaningTimeLarge = 0.5
-    schedulingStore.cleaningTimeSmall = 0.25
-    schedulingStore.cleaningTimeRegular = 0.5
-    schedulingStore.shiftDays = 1
-    schedulingStore.shiftHours = 2
+    // —— 生产规则配置 ——
+    schedulingStore.continuousRunLimit = MODEL_BUILD_DEFAULTS.continuousRunLimit
+    schedulingStore.cleaningTimeLarge = MODEL_BUILD_DEFAULTS.cleaningTimeLarge
+    schedulingStore.cleaningTimeSmall = MODEL_BUILD_DEFAULTS.cleaningTimeSmall
+    schedulingStore.cleaningTimeRegular = MODEL_BUILD_DEFAULTS.cleaningTimeRegular
+    // —— 班次换算配置 ——
+    schedulingStore.shiftDays = MODEL_BUILD_DEFAULTS.shiftDays
+    schedulingStore.shiftHours = MODEL_BUILD_DEFAULTS.shiftHours
+    // —— 人员容量配置（早班）——
+    schedulingStore.morningShiftCapacity = { ...MODEL_BUILD_DEFAULTS.morningShiftCapacity }
+    // —— 算法求解时长配置 ——
+    schedulingStore.maxSolveTime = MODEL_BUILD_DEFAULTS.maxSolveTime
+    // —— 其余参数字段清空（排产月份、部门）——
+    schedulingStore.productionMonth = null
+    schedulingStore.selectedDepartment = ''
     ElMessage.success('已恢复默认参数')
   }
 
@@ -249,6 +301,7 @@ export function useModelBuild() {
     isModelBuildLocked,
     solveBtnText,
     canStartSolve,
+    departmentOptions,
     hasDeadlineDateError,
     hasIntervalError,
     hasTimeRuleError,

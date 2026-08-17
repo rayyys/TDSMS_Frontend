@@ -77,6 +77,49 @@ export function deleteApsArchive(params) {
   })
 }
 
+/**
+ * 新增 APS 明细（前端点击"新增数据行"填写完成保存时调用）
+ * POST /aps/itemCreate
+ * @param {Object} data { archiveId, productName, packageSpecification, mixingLine, mixingBatchQuantity, ... }
+ * @returns {Promise} data: { itemId, archiveId, productName, ... }
+ */
+export function createApsArchiveItem(data) {
+  return request({
+    method: 'post',
+    url: '/aps/itemCreate',
+    data,
+  })
+}
+
+/**
+ * 按品种批量删除 APS 明细（软删除，同一品种下所有未删除的包装规格与设备明细一并删除）
+ * POST /aps/itemDelete
+ * @param {Object} data { archiveId, productNames: string[] }
+ * @returns {Promise} data: { deletedProductCount, deletedItemCount, productNames }
+ */
+export function batchDeleteApsArchiveItems(data) {
+  return request({
+    method: 'post',
+    url: '/aps/itemDelete',
+    data,
+  })
+}
+
+/**
+ * 导出 APS 档案 Excel（全部未删除明细，不受页面模糊搜索条件影响）
+ * GET /aps/export
+ * @param {Object} params { archiveId }
+ * @returns {Promise} Excel 文件流
+ */
+export function exportApsArchive(params) {
+  return request({
+    method: 'get',
+    url: '/aps/export',
+    params,
+    responseType: 'blob',
+  })
+}
+
 // ========== 任务上传模块 ==========
 
 /**

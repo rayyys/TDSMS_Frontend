@@ -24,6 +24,56 @@
   }
 }
 
+// 部门选择（必填，下拉选项来自上传 Excel 的“部门”列）
+.department-block {
+  margin-bottom: 28px;
+  // padding: 20px;
+  background: #ffffff;
+  // border: 1px solid #ebeef5;
+  border-radius: 8px;
+
+  .department-label-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 12px;
+
+    .department-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #303133;
+    }
+
+    // 红色必填星号
+    .required-mark {
+      color: #f56c6c;
+      font-size: 18px;
+      line-height: 1;
+      margin-left: 2px;
+    }
+
+    .department-colon {
+      font-size: 16px;
+      color: #303133;
+    }
+
+    .department-desc {
+      font-size: 14px;
+      color: #909399;
+      // margin-left: 8px;
+    }
+  }
+
+  .department-select-row {
+    .department-select {
+      :deep(.el-input__wrapper) {
+        height: 2rem;
+      }
+    }
+  }
+}
+
 .model-build-container {
   // padding: 20px;
   // background: #ffffff;
@@ -393,7 +443,7 @@
 .action-bar-space {
   position: sticky;
   bottom: 0;
-  height: 12px;
+  height: 14px;
   margin: 0 -20px;
   background: #fff;
   z-index: 50;

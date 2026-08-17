@@ -195,13 +195,13 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const cleaningTimeRegular = ref(saved?.cleaningTimeRegular ?? 0.5) // 定期清场时长（天）
   const shiftDays = ref(saved?.shiftDays ?? 1) // 班次换算-天数
   const shiftHours = ref(saved?.shiftHours ?? 2) // 班次换算-班时
-  // 3. 人员容量配置
+  // 3. 人员容量配置（仅保留早班，晚班已下线）
   const morningShiftCapacity = ref(
     saved?.morningShiftCapacity ?? { 配料: 3, 压片: 2, 包衣: 2, 包装: 4 },
   )
-  const eveningShiftCapacity = ref(
-    saved?.eveningShiftCapacity ?? { 配料: 3, 压片: 2, 包衣: 2, 包装: 3 },
-  )
+
+  // 4. 部门选择（必填，默认 210车间）
+  const selectedDepartment = ref(saved?.selectedDepartment ?? '210车间')
 
   const solveTimeOptions = SOLVE_TIME_OPTIONS
 
@@ -237,7 +237,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       shiftDays: shiftDays.value,
       shiftHours: shiftHours.value,
       morningShiftCapacity: morningShiftCapacity.value,
-      eveningShiftCapacity: eveningShiftCapacity.value,
+      selectedDepartment: selectedDepartment.value,
       solveStatus: solveStatus.value,
       solveInfo: solveInfo.value,
       // 缓存"总运行时长"和"求解日志"数据，页面关闭后自动清空
@@ -267,7 +267,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       shiftDays,
       shiftHours,
       morningShiftCapacity,
-      eveningShiftCapacity,
+      selectedDepartment,
     ],
     () => {
       persistState()
@@ -832,7 +832,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     shiftDays,
     shiftHours,
     morningShiftCapacity,
-    eveningShiftCapacity,
+    selectedDepartment,
     // 模型求解
     solveStatus,
     isSolving,

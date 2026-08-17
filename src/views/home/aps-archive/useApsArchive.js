@@ -1,7 +1,13 @@
 import { ref, computed, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
-import { createApsArchive } from '@/api/scheduling'
+import {
+  createApsArchive,
+  createApsArchiveItem,
+  batchDeleteApsArchiveItems,
+  exportApsArchive,
+  downloadApsTemplate,
+} from '@/api/scheduling'
 
 /**
  * 创建单个方案的默认状态
@@ -28,6 +34,60 @@ function createPlanState() {
   }
 }
 
+// 判断方案是否已保存为后端档案（本地临时方案的 id 以 "plan-" 前缀标记）
+function isSavedArchive(plan) {
+  return !!plan && typeof plan.id === 'string' && !plan.id.startsWith('plan-')
+}
+
+// 从响应头 Content-Disposition 中解析文件名（与 data-upload 页面保持一致）
+function extractFilename(res) {
+  const disposition = res?.headers?.['content-disposition']
+  if (!disposition) return ''
+  const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+  return match ? decodeURIComponent(match[1].replace(/['"]/g, '')) : ''
+}
+
+// 触发浏览器下载文件流
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+}
+
+// 将表格行字段映射为「新增 APS 明细」接口的请求参数
+function mapRowToItemPayload(row, archiveId) {
+  return {
+    archiveId: Number(archiveId),
+    productName: row.product ?? '',
+    packageSpecification: row.packageSpec ?? '',
+    mixingLine: row.dispensingLine ?? '',
+    mixingBatchQuantity: row.batchQty ?? '',
+    mixingShiftOutput: row.shiftOutput ?? '',
+    mixingWorkerCount: row.dispensingStaff ?? '',
+    tabletPress: row.pressMachine ?? '',
+    tabletingShiftOutput: row.pressOutput ?? '',
+    tabletingWorkerCount: row.pressStaff ?? '',
+    coatingMachine: row.coatingMachine ?? '',
+    coatingShiftOutput: row.coatingOutput ?? '',
+    coatingWorkerCount: row.coatingStaff ?? '',
+    dividingEquipment: row.fillingEquip ?? '',
+    dividingShiftOutput: row.fillingOutput ?? '',
+    dividingWorkerCount: row.fillingStaff ?? '',
+    packagingEquipment: row.packingEquip ?? '',
+    packagingShiftOutput: row.packingOutput ?? '',
+    manualPackagingOutput: row.manualOutput ?? '',
+    packagingWorkerCount: row.packingStaff ?? '',
+    productionCycleDays: row.cycleDays ?? '',
+    centralizedProcurement: row.isProcurement ?? '',
+    annualSales: row.annualSales ?? '',
+  }
+}
+
 /**
  * APS 排产信息档案 - 页面逻辑组合式函数
  * 支持多方案隔离：切换方案时自动保存/恢复各自的上传状态与表格数据
@@ -40,6 +100,11 @@ export function useApsArchive() {
 
   // 每个方案对应一个独立的状态对象（reactive），切换方案时互不干扰
   const planStateMap = ref({})
+
+  // 获取当前激活的方案对象
+  function getActivePlan() {
+    return planList.value.find((p) => p.id === activePlanId.value)
+  }
 
   // 确保当前激活方案已有状态对象，没有则初始化
   function ensurePlanState(planId) {
@@ -249,9 +314,28 @@ export function useApsArchive() {
     return row
   }
 
-  // 下载模板占位
-  function onDownloadTemplate() {
-    ElMessage.info('模板下载功能待接入')
+  // 下载模板：调用后端接口获取 APS 排产信息模板文件
+  async function onDownloadTemplate() {
+    try {
+      const res = await downloadApsTemplate()
+      const blob = res?.data
+      if (!blob || !(blob instanceof Blob)) {
+        ElMessage.error('模板下载失败，未获取到文件流')
+        return
+      }
+      const filename = extractFilename(res) || 'APS排产信息模板.xlsx'
+      downloadBlob(blob, filename)
+      ElMessage.success('模板下载成功')
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else if (status === 500) {
+        ElMessage.error('Excel模板文件不存在，请联系管理员')
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '模板下载失败')
+      }
+    }
   }
 
   // ================== 工具栏操作 ==================
@@ -266,9 +350,10 @@ export function useApsArchive() {
     // 通知表格清空选中：由调用方通过 el-table ref 调用 clearSelection
   }
 
-  // 批量删除
+  // 批量删除：已保存的方案调用「按品种批量删除」接口，再同步本地表格
   async function onBatchDelete() {
-    const selected = planState.value.selectedRows
+    const state = planState.value
+    const selected = state.selectedRows
     if (!selected.length) {
       ElMessage.warning('请先选择要删除的数据')
       return
@@ -279,9 +364,34 @@ export function useApsArchive() {
         confirmButtonText: '删除',
         cancelButtonText: '取消',
       })
+
+      // 收集选中行的品种名（去重），后端按品种软删除
+      const productNames = [...new Set(selected.map((row) => row.product).filter(Boolean))]
+      if (!productNames.length) {
+        ElMessage.warning('选中的数据缺少品种信息，无法删除')
+        return
+      }
+
+      const activePlan = getActivePlan()
+      // 已保存的方案同步删除后端数据；未保存的方案仅本地删除
+      if (isSavedArchive(activePlan)) {
+        const res = await batchDeleteApsArchiveItems({
+          archiveId: activePlan.id,
+          productNames,
+        })
+        const result = res?.data
+        if (result?.success === false) {
+          ElMessage.error(result.message || '批量删除失败')
+          return
+        }
+      }
+
+      // 本地删除：先移除选中的行，再同步移除选中品种下的其余行（与后端按品种删除语义一致）
       const selectedSet = new Set(selected)
-      const state = planState.value
-      state.tableData = state.tableData.filter((row) => !selectedSet.has(row))
+      const productSet = new Set(productNames)
+      state.tableData = state.tableData.filter(
+        (row) => !selectedSet.has(row) && !productSet.has(row.product),
+      )
       state.selectedRows = []
       // 若被删行正是可编辑行，则清空可编辑状态
       if (state.editingRow && !state.tableData.includes(state.editingRow)) {
@@ -301,7 +411,8 @@ export function useApsArchive() {
   // 新增空行
   function onAddRow() {
     const state = planState.value
-    const newRow = {}
+    // _isNewRow 标记新增行，保存时据此调用「新增 APS 明细」接口逐行入库
+    const newRow = { _isNewRow: true }
     state.tableData.push(newRow)
     // 记录新增行下标，供保存时定位该行进行品种校验
     state.newRowIndex = state.tableData.length - 1
@@ -310,16 +421,49 @@ export function useApsArchive() {
     ElMessage.success('已新增数据行')
   }
 
-  // 导出表格（占位）
-  function onExportTable() {
-    ElMessage.info('导出表格功能待接入')
+  // 导出表格：调用后端接口导出当前档案全部明细为 Excel 文件
+  async function onExportTable() {
+    const activePlan = getActivePlan()
+    // 导出需要档案 ID，未保存的方案无法导出
+    if (!isSavedArchive(activePlan)) {
+      ElMessage.warning('请先保存方案后再导出')
+      return
+    }
+    try {
+      const res = await exportApsArchive({ archiveId: activePlan.id })
+      const blob = res?.data
+      if (!blob || !(blob instanceof Blob)) {
+        ElMessage.error('导出失败，未获取到文件流')
+        return
+      }
+      const filename = extractFilename(res) || `${activePlan.name}.xlsx`
+      downloadBlob(blob, filename)
+      ElMessage.success('导出成功')
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '导出失败，请稍后重试')
+      }
+    }
   }
 
-  // 保存：上传原始 Excel 文件给后端解析，创建 APS 方案
+  // 保存：存在新增数据行时逐条调用「新增 APS 明细」接口；否则上传原始 Excel 创建档案
   async function onSaveTable() {
     const state = planState.value
     if (state.saving) return
 
+    const activePlan = getActivePlan()
+
+    // 场景一：存在通过「新增数据行」添加的本地行 → 调用新增明细接口逐行保存
+    const newRows = state.tableData.filter((row) => row._isNewRow)
+    if (newRows.length) {
+      await saveNewRows(newRows, activePlan)
+      return
+    }
+
+    // 场景二：首次保存 → 上传 Excel 文件给后端解析，创建 APS 方案
     // 校验：必须先上传 Excel 文件
     if (!state.rawFile) {
       ElMessage.warning('请先上传 Excel 文件')
@@ -327,7 +471,6 @@ export function useApsArchive() {
     }
 
     // 获取当前方案名称作为 archiveName
-    const activePlan = planList.value.find((p) => p.id === activePlanId.value)
     const archiveName = activePlan?.name || '未命名方案'
 
     state.saving = true
@@ -367,6 +510,58 @@ export function useApsArchive() {
       const status = err?.response?.status
       if (status === 400) {
         ElMessage.error(err?.response?.data?.message || '保存失败，请检查文件格式')
+      } else if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '保存失败，请稍后重试')
+      }
+    } finally {
+      state.saving = false
+      loadingMsg.close()
+    }
+  }
+
+  // 将新增数据行逐条调用「新增 APS 明细」接口保存到后端
+  async function saveNewRows(newRows, activePlan) {
+    // 新增明细需要档案 ID，未保存的方案（本地临时 id）无法调用
+    if (!isSavedArchive(activePlan)) {
+      ElMessage.warning('请先上传并保存 Excel 文件创建档案，再新增数据行')
+      return
+    }
+    // 过滤出已填写品种的数据行，避免把空白行提交到后端
+    const validRows = newRows.filter((row) => row.product && String(row.product).trim())
+    if (!validRows.length) {
+      ElMessage.warning('请先填写新增行的品种信息')
+      return
+    }
+
+    const state = planState.value
+    state.saving = true
+
+    const loadingMsg = ElMessage({
+      message: '正在保存新增数据...',
+      type: 'info',
+      duration: 0,
+    })
+
+    try {
+      for (const row of validRows) {
+        const res = await createApsArchiveItem(mapRowToItemPayload(row, activePlan.id))
+        const result = res?.data
+        if (result?.success === false) {
+          ElMessage.error(result.message || '新增明细失败')
+          return
+        }
+        // 保存成功后将行标记为已保存，避免下次重复提交
+        row._isNewRow = false
+      }
+      state.newRowIndex = null
+      state.editingRow = null
+      ElMessage.success(`保存成功，共新增 ${validRows.length} 条数据`)
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 400) {
+        ElMessage.error(err?.response?.data?.message || '保存失败，请检查数据填写是否完整')
       } else if (status === 401) {
         // 401 已在响应拦截器中统一处理（提示 + 跳转）
       } else {

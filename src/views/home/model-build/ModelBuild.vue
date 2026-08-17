@@ -7,6 +7,32 @@
       </p>
     </div>
 
+    <!-- 部门选择（必填，下拉选项来自上传 Excel 的“部门”列） -->
+    <div class="department-block">
+      <div class="department-label-row">
+        <span class="department-name">部门</span>
+        <span class="required-mark">*</span>
+        <span class="department-colon">：</span>
+        <span class="department-desc">请选择本次排产对应的生产车间，仅可选择一个车间。</span>
+      </div>
+      <div class="department-select-row">
+        <el-select
+          v-model="schedulingStore.selectedDepartment"
+          placeholder="请选择车间"
+          class="department-select"
+          :disabled="isModelBuildLocked"
+          style="width: 15.25rem !important"
+        >
+          <el-option
+            v-for="dept in departmentOptions"
+            :key="dept"
+            :label="dept"
+            :value="dept"
+          />
+        </el-select>
+      </div>
+    </div>
+
     <div class="model-build-container">
       <!-- 1. 排产时间设置 -->
       <div class="section">
@@ -198,35 +224,7 @@
             </div>
           </div>
 
-          <!-- 晚班人员容量 -->
-          <div class="capacity-group">
-            <div class="capacity-group-title">晚班人员容量</div>
-            <div class="capacity-row">
-              <div
-                v-for="key in capacityKeys"
-                :key="`evening-${key}`"
-                class="capacity-item"
-              >
-                <span class="capacity-label">{{ key }}用人</span>
-                <div class="capacity-control">
-                  <el-input-number
-                    v-model="schedulingStore.eveningShiftCapacity[key]"
-                    :min="0"
-                    :step="1"
-                    :precision="0"
-                    :controls="false"
-                    :disabled="isModelBuildLocked"
-                    class="stable-input-number"
-                    style="padding-left: 12px;"
-                  >
-                    <template #suffix>
-                      <span class="rule-unit">人</span>
-                    </template>
-                  </el-input-number>
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- 晚班人员容量已下线，不再展示与提交 -->
 
           <div class="rule-hint capacity-hint">
             表示每个工序在同一时间内，最多可同时开启的各工序的人员容量。
@@ -305,6 +303,7 @@ const {
   isModelBuildLocked,
   solveBtnText,
   canStartSolve,
+  departmentOptions,
   isSolveBtnDisabled,
   solvingLoading,
   handlePrev,
