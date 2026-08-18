@@ -320,13 +320,29 @@
         border
         :row-class-name="matchRowClassName"
       >
-        <el-table-column prop="inventoryName" label="存货名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="specification" label="规格" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="reason" label="未匹配原因" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="inventoryName" label="存货名称" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            <!-- 占位行：渲染隐藏占位符撑起与普通行一致的行高 -->
+            <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
+            <span v-else>{{ row.inventoryName }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="specification" label="规格" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
+            <span v-else>{{ row.specification }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="reason" label="未匹配原因" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
+            <span v-else>{{ row.reason }}</span>
+          </template>
+        </el-table-column>
       </el-table>
       <!-- 分页区：左下角显示总条数，右侧分页 + 页面跳转（参考任务数据页表格形态） -->
       <div class="match-pagination-row">
-        <span class="match-total-count">共 {{ matchTotalRows }} 条</span>
+        <span class="match-total-count"></span>
         <div class="match-pagination-right">
           <el-pagination
             v-model:current-page="matchCurrentPage"

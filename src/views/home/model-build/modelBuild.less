@@ -518,9 +518,15 @@
       font-weight: 600;
     }
 
-    // 占位行：保留行高，隐藏单元格文字，与普通行视觉一致但无内容
+    // 占位符：内容（"-"）占据正常行高，文字颜色透明不可见
+    .cell-placeholder {
+      display: block;
+      color: transparent;
+    }
+
+    // 占位行：占位符内容保留行高但整体不可见，保证占位行与普通行等高
     :deep(.row-placeholder) {
-      .cell {
+      .cell-placeholder {
         visibility: hidden;
       }
       td {

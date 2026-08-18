@@ -24,7 +24,7 @@ export function useModelBuild() {
   const solveBtnText = computed(() => {
     const status = schedulingStore.solveStatus
     if (status === 'idle') return '开始求解'
-    if (status === 'stopped') return '重新求解'
+    if (status === 'stopped') return '开始求解'
     if (status === 'running') return '查看求解'
     return '已进行求解' // done
   })

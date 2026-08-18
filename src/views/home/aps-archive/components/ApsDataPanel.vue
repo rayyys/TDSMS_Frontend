@@ -165,16 +165,17 @@
     </div>
 
     <!-- 同步表格横向滚动的固定滚动条（位于底部操作栏顶端） -->
-    <div class="aps-table-hscroll" ref="hscrollRef">
+    <!-- <div class="aps-table-hscroll" ref="hscrollRef">
       <div
         class="aps-table-hscroll-track"
         ref="trackRef"
         @click="onTrackClick"
         @wheel.prevent="onHScrollWheel"
-      >
-        <div class="aps-table-hscroll-thumb" ref="thumbRef" @mousedown.prevent="onThumbDown"></div>
-      </div>
-    </div>
+      > -->
+        <!-- 拖拽滑块暂时注释掉（轨道点击 / 滚轮滚动仍可用） -->
+        <!-- <div class="aps-table-hscroll-thumb" ref="thumbRef" @mousedown.prevent="onThumbDown"></div> -->
+      <!-- </div>
+    </div> -->
 
     <!-- 底部操作栏 -->
     <div class="aps-data-footer">
