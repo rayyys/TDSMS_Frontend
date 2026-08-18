@@ -16,13 +16,6 @@ import {
 } from '@/api/scheduling'
 
 /**
- * 大数据量时分片渲染的每片大小（单位：行）
- * 首次渲染与每次滚动接近底部时追加的行数均由该常量决定，
- * 需要调整渲染节奏时只需修改此处一处
- */
-const APS_RENDER_STEP = 10
-
-/**
  * 创建单个方案的默认状态
  * 每个方案独立维护自己的数据、上传记录、选中项与搜索条件
  */
@@ -46,10 +39,6 @@ function createPlanState() {
     rawFile: null,
     // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
     detailLoaded: false,
-    // 大数据量时分片渲染：当前已渲染行数（滚动到底自动追加），避免一次性渲染全部行导致卡顿
-    renderCount: APS_RENDER_STEP,
-    // 每次滚动到底追加的行数（由顶部常量 APS_RENDER_STEP 统一配置）
-    renderStep: APS_RENDER_STEP,
   }
 }
 
@@ -133,6 +122,10 @@ const ITEM_TO_ROW_KEYS = {
   annualSales: 'annualSales',
 }
 
+// 行对象唯一 key 的自增序号：用于虚拟滚动表格的 rowKey，
+// 保证每行（含新增行/Excel 解析行/后端明细行）都有稳定且唯一的标识
+let rowSeq = 0
+
 // 将后端明细记录转为表格行数据：空值统一转为空字符串，避免表格显示 null/undefined
 function mapItemToRow(item) {
   const row = {}
@@ -142,6 +135,8 @@ function mapItemToRow(item) {
   }
   // 保留后端明细主键 itemId，供「单条精确删除」接口使用
   row.itemId = item?.itemId ?? null
+  // 注入唯一行 key（itemId 唯一则复用，否则退回自增序号）
+  row.__rowKey = item?.itemId != null ? `item-${item.itemId}` : `excel-${++rowSeq}`
   return row
 }
 
@@ -189,45 +184,6 @@ export function useApsArchive() {
     })
   })
 
-  // 表格实际渲染的数据：按片渲染（先渲染第一个分片快速进入，再后台自动补全）
-  const displayTableData = computed(() => {
-    const rows = filteredTableData.value
-    return rows.slice(0, planState.value.renderCount)
-  })
-
-  // 后台自动分片加载：首屏只渲染第一个分片（减少 DOM 渲染压力，快速进入方案页面），
-  // 之后每帧按分片步长追加渲染下一片，直至渲染全部行，保持从上至下滚动查看全部数据的体验。
-  // 使用 requestAnimationFrame 逐片推进，给浏览器留出布局与绘制的帧间隙，避免一次性渲染全部行导致卡顿
-  let loadAllRafId = null
-  function autoLoadAllRows() {
-    // 取消上一轮调度，避免切换方案/搜索时多个加载循环并发叠加
-    cancelAnimationFrame(loadAllRafId)
-    const state = planState.value
-    const total = filteredTableData.value.length
-    if (state.renderCount >= total) return
-    state.renderCount = Math.min(total, state.renderCount + state.renderStep)
-    loadAllRafId = requestAnimationFrame(autoLoadAllRows)
-  }
-
-  // 搜索条件变化后重置已渲染片数，并自动分片加载搜索结果
-  watch(
-    () => planState.value.searchQuery,
-    () => {
-      planState.value.renderCount = planState.value.renderStep
-      autoLoadAllRows()
-    },
-  )
-
-  // 删除数据导致总行数减少时，修正已渲染片数，避免超出实际行数
-  watch(
-    () => filteredTableData.value.length,
-    (len) => {
-      if (planState.value.renderCount > len) {
-        planState.value.renderCount = len
-      }
-    },
-  )
-
   // 下一个方案的序号
   function nextPlanNo() {
     return planList.value.length + 1
@@ -250,13 +206,8 @@ export function useApsArchive() {
   function onSelectPlan(planId) {
     if (planId === activePlanId.value) return
     apsStore.selectPlan(planId)
-    // 每次切换都重置已渲染片数为第一个分片：先只渲染首片快速进入，
-    // 避免重复切换回已加载完的方案时一次性渲染全部行导致卡顿
-    planState.value.renderCount = planState.value.renderStep
     // 切换到已保存但明细尚未加载过的方案时，拉取其明细数据
     loadPlanDetail(getActivePlan())
-    // 切换方案后自动分片加载：先渲染首片快速进入，再后台补全剩余数据
-    autoLoadAllRows()
   }
 
   // 删除方案：已保存方案先删除后端数据（避免刷新后重新出现），再清理本地缓存
@@ -326,9 +277,6 @@ export function useApsArchive() {
       state.editingRow = null
       state.newRowIndex = null
       state.detailLoaded = true
-      // 重置分片渲染进度后自动分片加载：先渲染首片快速进入，再后台补全剩余数据
-      state.renderCount = state.renderStep
-      autoLoadAllRows()
     } catch (err) {
       const status = err?.response?.status
       if (status === 401) {
@@ -382,11 +330,7 @@ export function useApsArchive() {
       }
       state.uploadedFileName = saved.uploadedFileName || ''
       state.hasImported = !!saved.hasImported
-      // 重置分片渲染进度，保证恢复的数据立即可见
-      state.renderCount = state.renderStep
     }
-    // 草稿数据恢复后自动分片加载当前方案
-    autoLoadAllRows()
   }
 
   // 收集当前草稿方案的表格数据，写入 localStorage
@@ -414,27 +358,6 @@ export function useApsArchive() {
     },
     { deep: true },
   )
-
-  // ================== 表格样式 ==================
-  // 表头样式：固定浅灰背景，加粗居中
-  function headerCellStyle() {
-    return {
-      background: '#eef1f6',
-      color: '#303133',
-      fontWeight: '600',
-      textAlign: 'center',
-      borderColor: '#dfe4ec',
-    }
-  }
-
-  // 单元格样式：行高统一，禁止换行溢出
-  function cellStyle() {
-    return {
-      color: '#2d3436',
-      textAlign: 'center',
-      borderColor: '#eaeef4',
-    }
-  }
 
   // ================== Excel 上传与解析 ==================
   const uploadDragOver = ref(false)
@@ -470,9 +393,6 @@ export function useApsArchive() {
       const parsed = await parseExcelFile(file)
       const rows = parseApsSheetToRows(parsed)
       state.tableData = rows
-      // 重置分片渲染进度，立即刷新表格区域：避免沿用上一份数据遗留的渲染进度（如 0）导致新数据不显示
-      state.renderCount = state.renderStep
-      autoLoadAllRows()
       state.uploadedFileName = file.name
       state.hasImported = true
       state.selectedRows = []
@@ -504,8 +424,8 @@ export function useApsArchive() {
     if (!Array.isArray(rows) || rows.length < 2) return []
 
     // 数据从第 3 行（index 2）开始
-    return rows.slice(2).map((row) =>
-      trimRowWhitespace({
+    return rows.slice(2).map((row) => {
+      const parsedRow = trimRowWhitespace({
         product: row[0] ?? '',
         packageSpec: row[1] ?? '',
         dispensingLine: row[2] ?? '',
@@ -528,8 +448,11 @@ export function useApsArchive() {
         cycleDays: row[19] ?? '',
         isProcurement: row[20] ?? '',
         annualSales: row[21] ?? '',
-      }),
-    )
+      })
+      // 注入唯一行 key（Excel 行无 itemId，用自增序号）
+      parsedRow.__rowKey = `excel-${++rowSeq}`
+      return parsedRow
+    })
   }
 
   // 表格行数据字段键列表（用于统一清理首尾空白）
@@ -696,10 +619,8 @@ export function useApsArchive() {
   function onAddRow() {
     const state = planState.value
     // _isNewRow 标记新增行，保存时据此调用「新增 APS 明细」接口逐行入库
-    const newRow = { _isNewRow: true }
+    const newRow = { _isNewRow: true, __rowKey: `new-${++rowSeq}` }
     state.tableData.push(newRow)
-    // 新增行在数据末尾，先渲染至包含该行，保证新增行立即可见
-    state.renderCount = Math.max(state.renderCount, state.tableData.length)
     // 记录新增行下标，供保存时定位该行进行品种校验
     state.newRowIndex = state.tableData.length - 1
     // 新增行即刻进入可编辑状态（替换原可编辑行，保证仅一行）
@@ -925,14 +846,10 @@ export function useApsArchive() {
     activePlanId,
     planState,
     filteredTableData,
-    displayTableData,
     listLoading,
     onAddPlan,
     onSelectPlan,
     onDeletePlan,
-    // 表格样式
-    headerCellStyle,
-    cellStyle,
     // Excel 上传与解析
     uploadDragOver,
     fileInputRef,

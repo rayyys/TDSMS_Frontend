@@ -48,10 +48,9 @@
       </div>
     </div>
 
-    <!-- 数据表格 -->
+    <!-- 数据表格：el-table-v2 虚拟滚动，只渲染视口内可见行，数据量再大切换方案也不会卡顿 -->
     <div
       v-loading="planState.tableLoading"
-      ref="wrapRef"
       class="aps-data-table-wrap"
       element-loading-text="正在解析Excel..."
     >
@@ -61,503 +60,118 @@
         class="aps-adaptive-table"
         @column-layout-ready="onColumnLayoutReady"
       >
-        <template #default="{ densityClass, headerStyle, bodyStyle, getColWidth }">
-          <el-table
-            ref="tableRef"
-            :data="filteredTableData"
-            border
-            stripe
-            :class="['aps-data-table', densityClass]"
-            :row-class-name="rowClassName"
-            :fit="false"
-            :header-cell-style="(col) => ({ ...headerStyle, ...headerCellStyle(col) })"
-            :cell-style="(col) => ({ ...bodyStyle, ...cellStyle(col) })"
-          >
-            <!-- 区块选择列：点击行勾选框时，自动选中该品种前后连续的整块数据行（勾选态由选中集合派生） -->
-            <el-table-column
-              :width="getColWidth(tableColumns[0])"
-              align="center"
-              fixed="left"
-              class-name="aps-selection-col"
-            >
-              <template #header>
-                <el-checkbox
-                  :model-value="isAllSelected"
-                  :indeterminate="isIndeterminate"
-                  @click="onToggleAll"
-                />
+        <template #default="{ densityClass, headerStyle, bodyStyle, getColWidth, scale }">
+          <div class="aps-table-v2-box" :class="densityClass">
+            <el-auto-resizer>
+              <template #default="{ height, width }">
+                <el-table-v2
+                  ref="tableV2Ref"
+                  class="aps-data-table"
+                  :columns="buildV2Columns(getColWidth)"
+                  :data="filteredTableData"
+                  :width="width"
+                  :height="height"
+                  :row-key="'__rowKey'"
+                  :row-height="tableRowHeight(scale)"
+                  :row-class="rowClassName"
+                  :header-height="[tableRowHeight(scale), tableRowHeight(scale)]"
+                  fixed
+                  @scroll="onV2Scroll"
+                >
+                  <!-- 单元格渲染：按列类型分支（选择列 / 操作列 / 可编辑输入框 / 只读溢出文本） -->
+                  <template #cell="{ column, rowData }">
+                    <!-- 主视口中固定列的占位副本：内容由左/右固定面板渲染，此处跳过避免双重显示 -->
+                    <template v-if="column.placeholderSign"></template>
+                    <!-- 区块选择列：点击勾选框自动选中该品种连续区块 -->
+                    <el-checkbox
+                      v-else-if="column.key === 'selection'"
+                      :model-value="isRowSelected(rowData)"
+                      @click="onToggleBlock(rowData)"
+                    />
+                    <!-- 操作列：编辑/删除按钮 -->
+                    <div v-else-if="column.key === 'actions'" class="row-actions">
+                      <el-button
+                        link
+                        class="row-action-btn row-action-edit"
+                        :icon="isRowEditable(rowData) ? Check : Edit"
+                        @click="isRowEditable(rowData) ? onSaveTable() : onEditRow(rowData)"
+                      />
+                      <el-button
+                        link
+                        class="row-action-btn row-action-del"
+                        :icon="Delete"
+                        @click="onDeleteRow(rowData)"
+                      />
+                    </div>
+                    <!-- 数据列：外层容器应用自适应内边距与行高（bodyStyle），编辑/只读内容在容器内居中且不贴边 -->
+                    <div v-else class="aps-cell-body" :style="bodyStyle">
+                      <el-input
+                        v-if="isRowEditable(rowData)"
+                        v-model="rowData[column.key]"
+                        class="aps-editable-cell"
+                        placeholder=""
+                      />
+                      <ApsOverflowText v-else :content="rowData[column.key]" />
+                    </div>
+                  </template>
+
+                  <!-- 双行表头：第一行分组合并（配料/压片/...）+ 跨行列标签；第二行列标题 -->
+                  <template #header="{ columns, headerIndex }">
+                    <template v-for="(col, idx) in columns" :key="col.key">
+                      <!-- 第一行：分组的起始列渲染跨列合并单元格（宽度=组内列宽和），其余列不渲染 -->
+                      <div
+                        v-if="headerIndex === 0 && (!col.group || isGroupStartCol(columns, idx))"
+                        class="el-table-v2__header-cell aps-v2-header"
+                        :class="{ 'aps-v2-header-group': !!col.group }"
+                        :style="{
+                          width: (col.group ? groupWidth(columns, col) : col.width) + 'px',
+                          flexShrink: 0,
+                          ...headerStyle,
+                        }"
+                      >
+                        <!-- 主视口中固定列的占位副本：内容由左/右固定面板渲染，此处跳过避免双重显示 -->
+                        <template v-if="col.placeholderSign"></template>
+                        <el-checkbox
+                          v-else-if="col.key === 'selection'"
+                          :model-value="isAllSelected"
+                          :indeterminate="isIndeterminate"
+                          @click="onToggleAll"
+                        />
+                        <span v-else-if="col.key === 'actions'">操作</span>
+                        <span v-else-if="col.group">{{ col.group }}</span>
+                        <span v-else>{{ col.title }}</span>
+                      </div>
+                      <!-- 第二行：分组列渲染标题（可换行），跨行列与选择/操作列留空（第一行已显示） -->
+                      <div
+                        v-else-if="headerIndex === 1"
+                        class="el-table-v2__header-cell aps-v2-header"
+                        :style="{ width: col.width + 'px', flexShrink: 0, ...headerStyle }"
+                      >
+                        <template v-if="col.key === 'selection'"></template>
+                        <template v-else-if="col.key === 'actions'"></template>
+                        <template v-else-if="col.group">
+                          <template v-if="col.subtitle">{{ col.title }}<br />{{ col.subtitle }}</template>
+                          <template v-else>{{ col.title }}</template>
+                        </template>
+                      </div>
+                    </template>
+                  </template>
+                </el-table-v2>
               </template>
-              <template #default="scope">
-                <el-checkbox
-                  :model-value="isRowSelected(scope.row)"
-                  @click="onToggleBlock(scope.row)"
-                />
-              </template>
-            </el-table-column>
-
-        <!-- 品种 -->
-        <el-table-column
-          prop="product"
-          label="品种"
-          :width="getColWidth(tableColumns[1])"
-          :resizable="false"
-          align="center"
-        >
-          <template #default="scope">
-            <el-input
-              v-if="isRowEditable(scope.row)"
-              v-model="scope.row.product"
-              class="aps-editable-cell"
-              placeholder=""
-            />
-            <ApsOverflowText v-else :content="scope.row.product" />
-          </template>
-        </el-table-column>
-
-        <!-- 包装规格 -->
-        <el-table-column
-          prop="packageSpec"
-          label="包装规格"
-          :width="getColWidth(tableColumns[2])"
-          :resizable="false"
-          align="center"
-        >
-          <template #default="scope">
-            <el-input
-              v-if="isRowEditable(scope.row)"
-              v-model="scope.row.packageSpec"
-              class="aps-editable-cell"
-              placeholder=""
-            />
-            <ApsOverflowText v-else :content="scope.row.packageSpec" />
-          </template>
-        </el-table-column>
-
-        <!-- 配料（合并 4 列子表头） -->
-        <el-table-column label="配料" align="center">
-          <el-table-column
-            prop="dispensingLine"
-            label="配料线体"
-            :width="getColWidth(tableColumns[3])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.dispensingLine"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.dispensingLine" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="batchQty"
-            :width="getColWidth(tableColumns[4])"
-            :resizable="false"
-            align="center"
-          >
-            <template #header>
-              <!-- 表头换行：第一行“批量”，第二行“(万片/粒)” -->
-              <span>批量</span>
-              <br />
-              <span>(万片/粒)</span>
-            </template>
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.batchQty"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.batchQty" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="shiftOutput"
-            :width="getColWidth(tableColumns[5])"
-            :resizable="false"
-            align="center"
-          >
-            <template #header>
-              <!-- 表头换行：第一行“试产量”，第二行“(万片)” -->
-              <span>试产量</span>
-              <br />
-              <span>(万片)</span>
-            </template>
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.shiftOutput"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.shiftOutput" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="dispensingStaff"
-            label="用人"
-            :width="getColWidth(tableColumns[6])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.dispensingStaff"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.dispensingStaff" />
-            </template>
-          </el-table-column>
-        </el-table-column>
-
-        <!-- 压片（合并 3 列子表头） -->
-        <el-table-column label="压片" align="center">
-          <el-table-column
-            prop="pressMachine"
-            label="压片机"
-            :width="getColWidth(tableColumns[7])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.pressMachine"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.pressMachine" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="pressOutput"
-            label="班产量"
-            :width="getColWidth(tableColumns[8])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.pressOutput"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.pressOutput" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="pressStaff"
-            label="用人"
-            :width="getColWidth(tableColumns[9])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.pressStaff"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.pressStaff" />
-            </template>
-          </el-table-column>
-        </el-table-column>
-
-        <!-- 包衣（合并 3 列子表头） -->
-        <el-table-column label="包衣" align="center">
-          <el-table-column
-            prop="coatingMachine"
-            label="包衣机"
-            :width="getColWidth(tableColumns[10])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.coatingMachine"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.coatingMachine" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="coatingOutput"
-            label="班产量"
-            :width="getColWidth(tableColumns[11])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.coatingOutput"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.coatingOutput" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="coatingStaff"
-            label="用人"
-            :width="getColWidth(tableColumns[12])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.coatingStaff"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.coatingStaff" />
-            </template>
-          </el-table-column>
-        </el-table-column>
-
-        <!-- 分装/铝塑（合并 3 列子表头） -->
-        <el-table-column label="分装/铝塑" align="center">
-          <el-table-column
-            prop="fillingEquip"
-            label="填料设备"
-            :width="getColWidth(tableColumns[13])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.fillingEquip"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.fillingEquip" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="fillingOutput"
-            :width="getColWidth(tableColumns[14])"
-            :resizable="false"
-            align="center"
-          >
-            <template #header>
-              <!-- 表头换行：第一行“班产量”，第二行“(万片)” -->
-              <span>班产量</span>
-              <br />
-              <span>(万片)</span>
-            </template>
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.fillingOutput"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.fillingOutput" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="fillingStaff"
-            label="用人"
-            :width="getColWidth(tableColumns[15])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.fillingStaff"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.fillingStaff" />
-            </template>
-          </el-table-column>
-        </el-table-column>
-
-        <!-- 包装（合并 4 列子表头） -->
-        <el-table-column label="包装" align="center">
-          <el-table-column
-            prop="packingEquip"
-            label="操作设备"
-            :width="getColWidth(tableColumns[16])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.packingEquip"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.packingEquip" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="packingOutput"
-            :width="getColWidth(tableColumns[17])"
-            :resizable="false"
-            align="center"
-          >
-            <template #header>
-              <!-- 表头换行：第一行“班产量”，第二行“(万片)” -->
-              <span>班产量</span>
-              <br />
-              <span>(万片)</span>
-            </template>
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.packingOutput"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.packingOutput" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="manualOutput"
-            :width="getColWidth(tableColumns[18])"
-            :resizable="false"
-            align="center"
-          >
-            <template #header>
-              <!-- 表头换行：第一行“手工包装”，第二行“(1人产量)” -->
-              <span>手工包装</span>
-              <br />
-              <span>(1人产量)</span>
-            </template>
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.manualOutput"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.manualOutput" />
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="packingStaff"
-            label="用人"
-            :width="getColWidth(tableColumns[19])"
-            :resizable="false"
-            align="center"
-          >
-            <template #default="scope">
-              <el-input
-                v-if="isRowEditable(scope.row)"
-                v-model="scope.row.packingStaff"
-                class="aps-editable-cell"
-                placeholder=""
-              />
-              <ApsOverflowText v-else :content="scope.row.packingStaff" />
-            </template>
-          </el-table-column>
-        </el-table-column>
-
-        <!-- 生产周期/天 -->
-        <el-table-column
-          prop="cycleDays"
-          label="生产周期/天"
-          :width="getColWidth(tableColumns[20])"
-          :resizable="false"
-          align="center"
-        >
-          <template #default="scope">
-            <el-input
-              v-if="isRowEditable(scope.row)"
-              v-model="scope.row.cycleDays"
-              class="aps-editable-cell"
-              placeholder=""
-            />
-            <ApsOverflowText v-else :content="scope.row.cycleDays" />
-          </template>
-        </el-table-column>
-
-        <!-- 是否集采品种 -->
-        <el-table-column
-          prop="isProcurement"
-          label="是否集采品种"
-          :width="getColWidth(tableColumns[21])"
-          :resizable="false"
-          align="center"
-        >
-          <template #default="scope">
-            <el-input
-              v-if="isRowEditable(scope.row)"
-              v-model="scope.row.isProcurement"
-              class="aps-editable-cell"
-              placeholder=""
-            />
-            <ApsOverflowText v-else :content="scope.row.isProcurement" />
-          </template>
-        </el-table-column>
-
-        <!-- 年销量/万 -->
-        <el-table-column
-          prop="annualSales"
-          label="年销量/万"
-          :width="getColWidth(tableColumns[22])"
-          :resizable="false"
-          align="center"
-        >
-          <template #default="scope">
-            <el-input
-              v-if="isRowEditable(scope.row)"
-              v-model="scope.row.annualSales"
-              class="aps-editable-cell"
-              placeholder=""
-            />
-            <ApsOverflowText v-else :content="scope.row.annualSales" />
-          </template>
-        </el-table-column>
-
-        <!-- 操作列 -->
-        <el-table-column
-          label="操作"
-          :width="getColWidth(tableColumns[23])"
-          :resizable="false"
-          align="center"
-          fixed="right"
-        >
-          <template #default="scope">
-            <div class="row-actions">
-              <!-- 编辑态：图标切换为对号，点击触发保存（与底部保存按钮同一逻辑） -->
-              <el-button
-                link
-                class="row-action-btn row-action-edit"
-                :icon="isRowEditable(scope.row) ? Check : Edit"
-                @click="isRowEditable(scope.row) ? onSaveTable() : onEditRow(scope.row)"
-              />
-              <el-button
-                link
-                class="row-action-btn row-action-del"
-                :icon="Delete"
-                @click="onDeleteRow(scope.row)"
-              />
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+            </el-auto-resizer>
+          </div>
         </template>
       </AdaptiveTableContainer>
     </div>
 
     <!-- 同步表格横向滚动的固定滚动条（位于底部操作栏顶端） -->
     <div class="aps-table-hscroll" ref="hscrollRef">
-      <div class="aps-table-hscroll-track" ref="trackRef" @click="onTrackClick">
+      <div
+        class="aps-table-hscroll-track"
+        ref="trackRef"
+        @click="onTrackClick"
+        @wheel.prevent="onHScrollWheel"
+      >
         <div class="aps-table-hscroll-thumb" ref="thumbRef" @mousedown.prevent="onThumbDown"></div>
       </div>
     </div>
@@ -576,7 +190,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Plus, Upload, Edit, Delete, Search, Check } from '@element-plus/icons-vue'
 import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import ApsOverflowText from './ApsOverflowText.vue'
@@ -588,14 +202,6 @@ const props = defineProps({
   },
   filteredTableData: {
     type: Array,
-    required: true,
-  },
-  headerCellStyle: {
-    type: Function,
-    required: true,
-  },
-  cellStyle: {
-    type: Function,
     required: true,
   },
 })
@@ -612,7 +218,7 @@ const emit = defineEmits([
   'trigger-file-input',
 ])
 
-// 表格列配置：供 AdaptiveTableContainer 动态计算列宽（顺序与模板展示顺序一致）
+// 表格列配置：供 AdaptiveTableContainer 动态计算列宽（顺序与展示顺序一致）
 // width 为设计稿基准列宽，组件会根据容器宽度等比缩放；type 标记选择列/操作列
 const tableColumns = [
   { key: 'selection', type: 'selection', width: 55 },
@@ -648,8 +254,85 @@ const tableColumns = [
   { key: 'actions', type: 'action', label: '操作', width: 100, minWidth: 100 },
 ]
 
-const tableRef = ref(null)
-const wrapRef = ref(null)
+// ================== 虚拟表格列配置 ==================
+// 列分组（合并表头）：组名 → 组内列的 key 列表，用于虚拟表格第一行分组合并
+const COLUMN_GROUPS = [
+  { label: '配料', keys: ['dispensingLine', 'batchQty', 'shiftOutput', 'dispensingStaff'] },
+  { label: '压片', keys: ['pressMachine', 'pressOutput', 'pressStaff'] },
+  { label: '包衣', keys: ['coatingMachine', 'coatingOutput', 'coatingStaff'] },
+  { label: '分装/铝塑', keys: ['fillingEquip', 'fillingOutput', 'fillingStaff'] },
+  { label: '包装', keys: ['packingEquip', 'packingOutput', 'manualOutput', 'packingStaff'] },
+]
+
+// 列 key → 所属分组名（无则 null，表示跨两行的普通列，如品种/包装规格等）
+const COLUMN_GROUP_MAP = {}
+for (const group of COLUMN_GROUPS) {
+  for (const key of group.keys) COLUMN_GROUP_MAP[key] = group.label
+}
+
+// 表头第二行需要换行显示的列：主标题 + 副标题（与原始双行表头一致）
+const MULTILINE_TITLES = {
+  batchQty: ['批量', '(万片/粒)'],
+  shiftOutput: ['试产量', '(万片)'],
+  fillingOutput: ['班产量', '(万片)'],
+  packingOutput: ['班产量', '(万片)'],
+  manualOutput: ['手工包装', '(1人产量)'],
+}
+
+// ================== 表格外观规格配置（集中在此处调整） ==================
+// 行高 / 表头高度：由「基准行高 + 随容器缩放的比例系数」计算，
+// 缩放比例 scale 由 AdaptiveTableContainer 按容器宽度实时给出（0.15 ~ 2.0）
+// 单元格内边距与行高线高：由 AdaptiveTableContainer 的 bodyStyle / headerStyle 提供，
+// 会随容器缩放同步变化，与表头内边距视觉保持一致
+const ROW_LAYOUT = {
+  // 基准行高（容器宽 1680、scale=1 时的行高）
+  baseRowHeight: 32,
+  // 行高随缩放增加的比例系数（scale 每增加 1，行高增加 8px）
+  perScale: 8,
+}
+
+// 计算数据行高与表头行高（双行分组表头共用同一高度）
+function tableRowHeight(scale) {
+  return Math.round(ROW_LAYOUT.baseRowHeight + ROW_LAYOUT.perScale * scale)
+}
+
+// 将 tableColumns 映射为 el-table-v2 的列配置：
+// - width 由自适应组件的 getColWidth 逐列计算（随容器缩放实时更新）
+// - 选择列固定左侧、操作列固定右侧；数据列标记分组归属与双行标题
+function buildV2Columns(getColWidth) {
+  return tableColumns.map((col) => {
+    const v2Col = {
+      key: col.key,
+      dataKey: col.prop,
+      width: getColWidth(col),
+      fixed: col.type === 'selection' ? 'left' : col.type === 'action' ? 'right' : undefined,
+    }
+    // 仅数据列参与分组合并（选择/操作列不分组）
+    v2Col.group = COLUMN_GROUP_MAP[col.key] ?? null
+    // 第二行标题：带副标题的列拆成两行显示
+    const lines = MULTILINE_TITLES[col.key]
+    v2Col.title = lines ? lines[0] : col.label
+    v2Col.subtitle = lines ? lines[1] : ''
+    return v2Col
+  })
+}
+
+// 判断某列是否为所在分组的起始列（仅起始列渲染合并单元格，实现表头合并）
+function isGroupStartCol(columns, idx) {
+  const col = columns[idx]
+  if (!col.group) return true
+  const startIdx = columns.findIndex((c) => c.group === col.group)
+  return idx === startIdx
+}
+
+// 计算某列所在分组的列宽之和（用于第一行合并单元格宽度）
+function groupWidth(columns, col) {
+  return columns
+    .filter((c) => c.group === col.group)
+    .reduce((sum, c) => sum + c.width, 0)
+}
+
+const tableV2Ref = ref(null)
 const hscrollRef = ref(null)
 const trackRef = ref(null)
 const thumbRef = ref(null)
@@ -659,9 +342,9 @@ function isRowEditable(row) {
   return row === props.planState.editingRow
 }
 
-// 可编辑行应用特殊 class，用于深蓝色外边框高亮标识
-function rowClassName({ row }) {
-  return isRowEditable(row) ? 'aps-editing-row' : ''
+// 可编辑行应用特殊 class，用于深蓝色外边框高亮标识（作用于所有视口的行）
+function rowClassName({ rowData }) {
+  return isRowEditable(rowData) ? 'aps-editing-row' : ''
 }
 
 // ================== 区块式选择 ==================
@@ -682,7 +365,8 @@ function findProductBlock(row) {
   return block
 }
 
-// 点击行勾选框：整块已选中则取消选中整块，否则选中该品种连续区块
+// 点击行勾选框：整块已选中则从选中集合中移除该品种区块；否则将当前品种区块并入选中集合
+// 支持同时选择多个品类：合并而非替换，保留其它已选品种
 function onToggleBlock(row) {
   const state = props.planState
   const block = findProductBlock(row)
@@ -691,11 +375,14 @@ function onToggleBlock(row) {
   if (allSelected) {
     state.selectedRows = state.selectedRows.filter((r) => !block.includes(r))
   } else {
-    state.selectedRows = block
+    state.selectedRows = [
+      ...state.selectedRows,
+      ...block.filter((r) => !state.selectedRows.includes(r)),
+    ]
   }
 }
 
-// 表头全选态：当前已渲染行全部选中时为 true
+// 表头全选态：当前数据全部选中时为 true
 const isAllSelected = computed(() => {
   const rows = props.filteredTableData || []
   return rows.length > 0 && rows.every((r) => props.planState.selectedRows.includes(r))
@@ -709,7 +396,7 @@ const isIndeterminate = computed(() => {
   return selectedCount > 0 && selectedCount < rows.length
 })
 
-// 表头全选/取消全选：选中全部数据行（含未渲染行，滚动后自动补选），或清空选中
+// 表头全选/取消全选：选中全部数据行，或清空选中
 function onToggleAll() {
   const state = props.planState
   if (isAllSelected.value) {
@@ -719,30 +406,34 @@ function onToggleAll() {
   }
 }
 
-// 表格横向滚动容器（el-table 内部负责横向滚动的 scrollbar wrap）
-let tableScrollWrap = null
+// ================== 横向滚动条同步（el-table-v2） ==================
+// v2 自带横向滚动条被隐藏，改由底部固定滚动条统一控制，交互与改造前一致
+const hScrollLeft = ref(0)
 let dragging = false
 // 鼠标按下时，光标相对滑块左边缘的偏移，保证从滑块任意位置拖拽都能跟手
 let dragOffset = 0
 
-// 查找表格的可横向滚动容器
-function getTableScrollWrap() {
-  const tableEl = tableRef.value?.$el
-  if (!tableEl) return null
-  return (
-    tableEl.querySelector('.el-table__body-wrapper .el-scrollbar__wrap') ||
-    tableEl.querySelector('.el-scrollbar__wrap')
-  )
+// 获取 v2 主视口与横向滚动容器元素（用于计算滚动总宽与视口宽）
+function getV2HScrollEls() {
+  const el = tableV2Ref.value?.$el
+  if (!el) return null
+  const mainEl = el.querySelector('.el-table-v2__main')
+  // v2 的实际横向滚动容器是虚拟列表的 window（.el-vl__wrapper 的首个子元素，无独立类名），
+  // 其 scrollWidth 即全部列宽之和，clientWidth 即视口宽
+  const windowEl = mainEl?.querySelector('.el-vl__wrapper')?.firstElementChild
+  if (!mainEl || !windowEl) return null
+  return { mainEl, windowEl }
 }
 
-// 根据表格横向滚动状态，同步固定滚动条的尺寸与位置
+// 根据 v2 的横向滚动状态，同步固定滚动条的尺寸与位置
 function syncHScroll() {
-  const wrap = tableScrollWrap
+  const els = getV2HScrollEls()
   const track = trackRef.value
   const thumb = thumbRef.value
-  if (!wrap || !track || !thumb) return
-  const total = wrap.scrollWidth
-  const view = wrap.clientWidth
+  if (!els || !track || !thumb) return
+  const { windowEl } = els
+  const view = windowEl.clientWidth
+  const total = windowEl.scrollWidth
   // 无横向溢出时隐藏滚动条
   if (total <= view) {
     thumb.style.display = 'none'
@@ -750,32 +441,19 @@ function syncHScroll() {
   }
   thumb.style.display = 'block'
   const trackW = track.clientWidth
-  const ratio = view / total
-  const thumbW = Math.max(24, trackW * ratio)
+  const maxScroll = total - view
+  const thumbW = Math.max(24, trackW * (view / total))
   thumb.style.width = thumbW + 'px'
-  thumb.style.transform = `translateX(${(wrap.scrollLeft / total) * trackW}px)`
+  // 滑块位置按滚动比例映射到可用拖动区域（轨道宽 - 滑块宽）
+  const maxThumbLeft = Math.max(0, trackW - thumbW)
+  const ratio = maxScroll > 0 ? hScrollLeft.value / maxScroll : 0
+  thumb.style.transform = `translateX(${ratio * maxThumbLeft}px)`
 }
 
-// 延迟到表格完成布局后再同步：el-table 需要 doLayout 后 scrollWidth 才是真实值，
-// 否则初始阶段拿到的宽度为 0，会导致滑块被误判为隐藏（点击一下才显示的问题）
-function syncHScrollLater() {
-  nextTick(() => {
-    tableRef.value?.doLayout?.()
-    requestAnimationFrame(() => syncHScroll())
-  })
-}
-
-// 初始化横向滚动容器并绑定同步
-function bindHScroll() {
-  const wrap = getTableScrollWrap()
-  if (!wrap) return
-  // 移除旧监听，避免重复绑定导致重复同步
-  if (tableScrollWrap && tableScrollWrap !== wrap) {
-    tableScrollWrap.removeEventListener('scroll', syncHScroll)
-  }
-  tableScrollWrap = wrap
-  wrap.addEventListener('scroll', syncHScroll)
-  syncHScrollLater()
+// v2 滚动事件：记录横向滚动位置并同步底部滚动条
+function onV2Scroll({ scrollLeft }) {
+  hScrollLeft.value = scrollLeft || 0
+  syncHScroll()
 }
 
 // 拖拽滚动条滑块：记录按下时相对滑块左边缘的偏移，保证从任意位置拖拽都跟手
@@ -790,14 +468,26 @@ function onThumbDown(e) {
   document.addEventListener('mouseup', onThumbUp)
 }
 
-function onThumbMove(e) {
-  if (!dragging || !tableScrollWrap || !trackRef.value) return
+// 将轨道上的像素偏移换算为 v2 的横向滚动位置
+function thumbOffsetToScrollLeft(offsetX) {
+  const els = getV2HScrollEls()
   const track = trackRef.value
-  const rect = track.getBoundingClientRect()
-  // 光标位置减去按下时的偏移，映射到表格的 scrollLeft
+  if (!els || !track) return 0
+  const { windowEl } = els
+  const view = windowEl.clientWidth
+  const total = windowEl.scrollWidth
+  const maxScroll = total - view
+  const thumbW = Math.max(24, track.clientWidth * (view / total))
+  const maxThumbLeft = Math.max(0, track.clientWidth - thumbW)
+  const ratio = maxThumbLeft > 0 ? offsetX / maxThumbLeft : 0
+  return Math.max(0, Math.min(maxScroll, ratio * maxScroll))
+}
+
+function onThumbMove(e) {
+  if (!dragging || !trackRef.value) return
+  const rect = trackRef.value.getBoundingClientRect()
   const offsetX = e.clientX - rect.left - dragOffset
-  const ratio = tableScrollWrap.scrollWidth / track.clientWidth
-  tableScrollWrap.scrollLeft = Math.max(0, offsetX * ratio)
+  tableV2Ref.value?.scrollToLeft(thumbOffsetToScrollLeft(offsetX))
 }
 
 function onThumbUp() {
@@ -810,55 +500,71 @@ function onThumbUp() {
 // 点击轨道空白处跳转到对应位置
 function onTrackClick(e) {
   if (e.target === thumbRef.value) return
-  if (!tableScrollWrap || !trackRef.value) return
   const track = trackRef.value
+  if (!track) return
   const rect = track.getBoundingClientRect()
   const offsetX = e.clientX - rect.left
-  const ratio = tableScrollWrap.scrollWidth / track.clientWidth
-  tableScrollWrap.scrollLeft = Math.max(0, offsetX * ratio)
+  tableV2Ref.value?.scrollToLeft(thumbOffsetToScrollLeft(offsetX))
 }
 
-// 窗口尺寸变化或表格数据变化后，重新同步滚动条
-function handleResize() {
-  bindHScroll()
-  syncHScrollLater()
+// 在固定滚动条上滚动滚轮：将纵向/横向滚轮位移换算为表格横向滚动（支持 Shift 滚轮、触摸板横向滑动）
+function onHScrollWheel(e) {
+  const delta = e.deltaX || e.deltaY
+  if (!delta) return
+  const els = getV2HScrollEls()
+  if (!els) return
+  const { windowEl } = els
+  const maxScroll = windowEl.scrollWidth - windowEl.clientWidth
+  if (maxScroll <= 0) return
+  const next = Math.max(0, Math.min(maxScroll, hScrollLeft.value + delta))
+  tableV2Ref.value?.scrollToLeft(next)
 }
 
 // 自适应组件完成列宽布局（容器尺寸变化后）时，重新同步底部固定滚动条
 function onColumnLayoutReady() {
-  syncHScrollLater()
+  syncHScroll()
 }
-
-onMounted(() => {
-  bindHScroll()
-  window.addEventListener('resize', handleResize)
-})
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize)
-  if (tableScrollWrap) tableScrollWrap.removeEventListener('scroll', syncHScroll)
+  document.removeEventListener('mousemove', onThumbMove)
+  document.removeEventListener('mouseup', onThumbUp)
 })
 
-// 取消选择：清空选中集合，选择框勾选态随选中集合自动刷新
-function onCancelSelection() {
-  emit('cancel-selection')
-}
+// 搜索条件变化后，虚拟表格回到顶部查看搜索结果
+watch(
+  () => props.planState.searchQuery,
+  () => {
+    tableV2Ref.value?.scrollToTop()
+  },
+)
+
+// 数据变化（切换方案/搜索过滤/新增行）后，重新同步横向滚动条状态
+watch(
+  () => props.filteredTableData.length,
+  () => {
+    nextTick(() => syncHScroll())
+  },
+)
 
 // 保存排序后，滚动定位到新增行
 watch(
   () => props.planState.scrollToRow,
   (target) => {
     if (!target) return
-    nextTick(() => {
-      tableRef.value?.doLayout?.()
-      const index = props.filteredTableData.indexOf(target)
-      scrollToRowByIndex(index)
-      // 定位完成后清除标记，避免重复触发
-      props.planState.scrollToRow = null
-    })
+    const index = props.filteredTableData.indexOf(target)
+    if (index >= 0) {
+      tableV2Ref.value?.scrollToRow(index, 'auto')
+    }
+    // 定位完成后清除标记，避免重复触发
+    props.planState.scrollToRow = null
   },
-  { immediate: false }
+  { immediate: false },
 )
+
+// 取消选择：清空选中集合，选择框勾选态随选中集合自动刷新
+function onCancelSelection() {
+  emit('cancel-selection')
+}
 
 function onBatchDelete() {
   emit('batch-delete')
@@ -870,50 +576,26 @@ function onResetSearch() {
 
 function onAddRow() {
   emit('add-row')
-  // 新增数据行后，自动滚动到底部，使最新添加的行立即可见
-  // el-table 内部渲染是异步的，需延迟等待新行渲染完成后再读取 scrollHeight
+  // 新增数据行位于末尾，延迟等待虚拟表格渲染完成后滚动定位到该行并聚焦首个可编辑单元格
   nextTick(() => {
-    tableRef.value?.doLayout?.()
+    setTimeout(() => {
+      const index = props.filteredTableData.length - 1
+      if (index >= 0) {
+        tableV2Ref.value?.scrollToRow(index, 'auto')
+      }
+      focusNewRowFirstCell()
+    }, 100)
   })
-  setTimeout(() => {
-    tableRef.value?.doLayout?.()
-    scrollToLastRow()
-    focusNewRowFirstCell()
-  }, 100)
 }
 
 // 聚焦新增行第一个可编辑单元格，使其立即可输入
 function focusNewRowFirstCell() {
-  const tableEl = tableRef.value?.$el
-  if (!tableEl) return
-  const rows = tableEl.querySelectorAll('.el-table__body-wrapper tbody tr')
+  const el = tableV2Ref.value?.$el
+  if (!el) return
+  const rows = el.querySelectorAll('.el-table-v2__row')
   const lastRow = rows[rows.length - 1]
   const firstInput = lastRow?.querySelector('.aps-editable-cell input')
   firstInput?.focus()
-}
-
-// 遍历祖先元素，找到所有竖向可滚动容器并平滑滚动到底部
-function scrollToLastRow() {
-  const tableEl = tableRef.value?.$el
-  if (!tableEl) return
-  let node = tableEl.parentElement
-  while (node && node !== document.documentElement) {
-    const overflowY = getComputedStyle(node).overflowY
-    // 仅滚动真正有溢出内容的容器（scrollHeight > clientHeight）
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
-    }
-    node = node.parentElement
-  }
-}
-
-// 将指定下标的行滚动到可视区域（避开底部固定操作栏），用于排序后定位新增行
-function scrollToRowByIndex(index) {
-  const tableEl = tableRef.value?.$el
-  if (!tableEl || index < 0) return
-  const rows = tableEl.querySelectorAll('.el-table__body-wrapper tbody tr')
-  const target = rows[index]
-  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'end' })
 }
 
 function onExportTable() {
@@ -924,8 +606,8 @@ function onSaveTable() {
   emit('save-table')
 }
 
-function onEditRow(row, index) {
-  emit('edit-row', row, index)
+function onEditRow(row) {
+  emit('edit-row', row)
 }
 
 function onDeleteRow(row) {
@@ -956,7 +638,6 @@ function onClickImport() {
     display: flex;
     align-items: center;
     padding: 16px 20px;
-    // border-bottom: 1px solid #f0f2f5;
 
     .aps-import-bar-left {
       display: flex;
@@ -978,7 +659,6 @@ function onClickImport() {
     justify-content: space-between;
     gap: 16px;
     padding: 16px 20px;
-    // border-bottom: 1px solid #f0f2f5;
 
     .aps-toolbar-left,
     .aps-toolbar-right {
@@ -1008,13 +688,18 @@ function onClickImport() {
     min-height: 0;
     padding: 12px 12px 76px;
     box-sizing: border-box;
-    overflow: auto;
 
-    // 自适应表格容器：允许内容超出容器（由外层 wrap 负责滚动），避免表格被裁剪
+    // 自适应表格容器：填满外层容器，虚拟表格在其中滚动
     :deep(.aps-adaptive-table) {
       width: 100%;
-      overflow: visible;
+      height: 100%;
     }
+  }
+
+  // 虚拟表格容器：占满自适应容器，供 el-auto-resizer 测量尺寸
+  .aps-table-v2-box {
+    width: 100%;
+    height: 100%;
   }
 
   .aps-data-footer {
@@ -1115,48 +800,38 @@ function onClickImport() {
   }
 }
 
-// APS 数据表格样式：双行表头浅蓝底，行内单元格不合并
+// APS 数据表格（虚拟滚动）样式：双行表头浅蓝底，行内单元格不合并
 .aps-data-table {
-  width: 100%;
-  font-size: 14px;
-  // 避免自适应容器的 flex 列布局压缩表格高度
-  flex-shrink: 0;
-
-  // 隐藏表格原生的横向滚动条（改用底部自定义固定滚动条）
-  // 仅隐藏横向滚动条，纵向滚动条保留；隐藏不影响 wrap 的滚动事件与 scrollLeft
-  :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  // 隐藏 v2 自带的横向滚动条，横向滚动由底部固定滚动条统一控制；
+  // 仅隐藏横向滚动条，纵向滚动条保留
+  :deep(.el-table-v2__main .el-virtual-scrollbar--horizontal) {
     display: none;
   }
 
-  :deep(.el-table__cell) {
-    padding: 4px 0;
-  }
-
-  // 强制所有单元格（表头 + 数据体）内容水平居中，防止默认样式覆盖导致个别列左对齐
-  :deep(.el-table__header th .cell),
-  :deep(.el-table__cell .cell) {
-    text-align: center !important;
-  }
-
-  // 区块选择列：复选框在单元格内始终水平居中（覆盖 EP 默认 inline-flex 布局）
-  :deep(th.aps-selection-col .cell),
-  :deep(td.aps-selection-col .cell) {
-    display: flex !important;
-    justify-content: center;
+  // 单元格：flex 居中内容，模拟原 el-table 的 border 网格线
+  :deep(.el-table-v2__row-cell) {
+    display: flex;
     align-items: center;
-    padding-left: 0;
-    padding-right: 0;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+    border-bottom: 1px solid #eaeef4;
+    border-right: 1px solid #eaeef4;
+  }
+
+  // 数据单元格内容容器：应用 bodyStyle 注入的自适应内边距与行高，
+  // 使编辑/只读内容在单元格内水平居中且不贴边（与表头内边距视觉一致）
+  :deep(.aps-cell-body) {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    overflow: hidden;
   }
 
   // 单元格内输入框与只读文本统一居中
-  :deep(.el-table__cell .el-input__inner),
-  :deep(.el-table__cell .aps-cell-text) {
+  :deep(.el-table-v2__row-cell .el-input__inner),
+  :deep(.el-table-v2__row-cell .aps-cell-text) {
     text-align: center !important;
-  }
-
-  // scrollIntoView 时为底部固定操作栏预留空间，避免定位的行被遮挡
-  :deep(.el-table__body-wrapper tbody tr) {
-    scroll-margin-bottom: 80px;
   }
 
   // 可编辑单元格：无边框、居中、聚焦时高亮，视觉上与普通单元格一致
@@ -1183,31 +858,34 @@ function onClickImport() {
   }
 
   // ===== 可编辑行：整行外边框高亮为深蓝色，清晰标识编辑状态 =====
-  :deep(tbody tr.aps-editing-row) td.el-table__cell {
-    // 上下外边框：横跨整行（含固定列），保证行上下被蓝色框线包围
+  // 上下外边框：横跨整行（含固定列），保证行上下被蓝色框线包围
+  :deep(.el-table-v2__row.aps-editing-row .el-table-v2__row-cell) {
     border-top: 1px solid #0066cc !important;
     border-bottom: 1px solid #0066cc !important;
   }
 
-  // 左侧外边框（多选列，固定左列）：抬高层级压过表格左侧灰色外框线（border-left-patch，z-index=3），再以内阴影绘制蓝色竖线
-  :deep(tbody tr.aps-editing-row) td.el-table-fixed-column--left {
+  // 左侧外边框（多选列，固定左列）：以内阴影绘制蓝色竖线
+  :deep(.el-table-v2__left .el-table-v2__row.aps-editing-row .el-table-v2__row-cell:first-child) {
     box-shadow: inset 1px 0 0 0 #0066cc !important;
-    z-index: 4;
   }
 
-  // 右侧外边框（操作列，固定右列）：抬高层级压过表格右侧灰色外框线，再以内阴影绘制蓝色竖线
-  :deep(tbody tr.aps-editing-row) td.el-table-fixed-column--right {
+  // 右侧外边框（操作列，固定右列）：以内阴影绘制蓝色竖线
+  :deep(.el-table-v2__right .el-table-v2__row.aps-editing-row .el-table-v2__row-cell:last-child) {
     box-shadow: inset -1px 0 0 0 #0066cc !important;
-    z-index: 4;
   }
 
-  // 双行表头效果：强制子表头也带上底色
-  :deep(.el-table__header-wrapper) {
-    .el-table__cell {
-      background: #eef1f6 !important;
-      color: #303133 !important;
-      font-weight: 600;
-    }
+  // 表头单元格：浅蓝底加粗居中，模拟原双行表头视觉
+  :deep(.el-table-v2__header-cell) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    border-bottom: 1px solid #dfe4ec;
+    border-right: 1px solid #dfe4ec;
+    background: #eef1f6;
+    color: #303133;
+    font-weight: 600;
   }
 
   // 操作列按钮组

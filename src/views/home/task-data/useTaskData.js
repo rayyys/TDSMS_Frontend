@@ -79,13 +79,16 @@ export function useTaskData() {
   const uploadTime = computed(() => schedulingStore.taskInfo?.uploadTime || '')
 
   // —— 筛选下拉选项 ——
-  // 从后端 /task/detailFilterOptions 接口按 taskId 动态获取去重后的部门 / 月度生产计划 / 存货名称。
+  // 从后端 /task/detailFilterOptions 接口按 taskId + 当前已选筛选值动态获取去重后的
+  // 部门 / 月度生产计划 / 存货名称，用于构建多选下拉框。
   // 部门 / 存货名称直接使用后端返回的字符串数组；生产计划模板要求 { value, label } 结构，在此统一转换。
   // 后端接口未就绪 / 返回为空时，回退到当前页数据提取的去重值，保证下拉框始终有可用选项。
   const remoteDepartmentOptions = ref([])
   const remoteInventoryOptions = ref([])
   const remoteProductionPlanOptions = ref([])
   const filterOptionsLoading = ref(false)
+  // 筛选选项请求序号：用于丢弃连续切换筛选时过期的并发响应
+  let filterOptionsSeq = 0
 
   // 从已加载的 rawRows 中动态提取「部门 / 存货名称」的去重值（作为后端兜底）
   const localDepartmentOptions = computed(() => {
@@ -116,7 +119,8 @@ export function useTaskData() {
 
   /**
    * 拉取筛选下拉选项
-   * 并发请求部门 / 月度生产计划 / 存货名称三类选项，taskId 兼容上传与历史导入两种来源
+   * 并发请求部门 / 月度生产计划 / 存货名称三类选项，taskId 兼容上传与历史导入两种来源；
+   * 请求体携带当前已选筛选值，后端据此联动计算各下拉框的可用选项
    */
   async function fetchFilterOptions() {
     // 未获取到任务 ID（尚未上传 / 历史导入）时清空选项
@@ -127,14 +131,23 @@ export function useTaskData() {
       remoteProductionPlanOptions.value = []
       return
     }
+    // 请求序号：仅应用最后一次发起的响应，避免连续切换筛选时旧响应覆盖新结果
+    const seq = ++filterOptionsSeq
     filterOptionsLoading.value = true
     try {
-      // 三类选项互不依赖，并发请求提升加载速度
+      // 三类选项互不依赖，并发请求提升加载速度；同时携带当前已选筛选值作为联动上下文
+      const baseFilter = {
+        departmentNames: filterDepartment.value,
+        monthlyProductionPlans: filterProductionPlan.value,
+        inventoryNames: filterInventoryName.value,
+      }
       const [deptRes, planRes, invRes] = await Promise.all([
-        getTaskDetailFilterOptions({ taskId, option: 'departmentNames' }),
-        getTaskDetailFilterOptions({ taskId, option: 'monthlyProductionPlans' }),
-        getTaskDetailFilterOptions({ taskId, option: 'inventoryNames' }),
+        getTaskDetailFilterOptions({ taskId, option: 'departmentNames', ...baseFilter }),
+        getTaskDetailFilterOptions({ taskId, option: 'monthlyProductionPlans', ...baseFilter }),
+        getTaskDetailFilterOptions({ taskId, option: 'inventoryNames', ...baseFilter }),
       ])
+      // 若期间又发起了新的拉取，丢弃本次结果，避免旧数据覆盖新数据
+      if (seq !== filterOptionsSeq) return
       // 兼容 { data: [...] } 与 { data: { data: [...] } } 两种返回结构
       const toArray = (res) => {
         const arr = res?.data?.data ?? res?.data
@@ -145,11 +158,13 @@ export function useTaskData() {
       remoteInventoryOptions.value = toArray(invRes)
     } catch (err) {
       // 接口异常不打扰用户，清空远程选项后自动回退到本地提取值
+      if (seq !== filterOptionsSeq) return
       remoteDepartmentOptions.value = []
       remoteInventoryOptions.value = []
       remoteProductionPlanOptions.value = []
     } finally {
-      filterOptionsLoading.value = false
+      // 仅当本次请求仍是最新请求时才结束 loading，避免提前关闭新请求的加载态
+      if (seq === filterOptionsSeq) filterOptionsLoading.value = false
     }
   }
 
@@ -159,6 +174,14 @@ export function useTaskData() {
     () => fetchFilterOptions(),
     { immediate: true },
   )
+
+  // 已选筛选值变化时联动重新拉取选项（请求体携带当前已选值，后端据此过滤可用选项），
+  // 用防抖合并多选连点，避免频繁触发请求
+  let optionsFetchTimer = null
+  watch([filterDepartment, filterProductionPlan, filterInventoryName], () => {
+    clearTimeout(optionsFetchTimer)
+    optionsFetchTimer = setTimeout(() => fetchFilterOptions(), 300)
+  })
 
   // —— 展示数据 ——
   // 筛选 / 搜索均由后端 /task/detailQuery 处理（点击「筛选」或「搜索」才发起请求），

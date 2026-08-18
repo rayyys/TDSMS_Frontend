@@ -93,7 +93,14 @@ export function useModelBuild() {
     }
     departmentOptionsLoading.value = true
     try {
-      const res = await getTaskDetailFilterOptions({ taskId, option: 'departmentNames' })
+      // 新接口为 POST，请求体需包含三个筛选的当前值；本页只需部门选项，未选时传空数组表示不限制
+      const res = await getTaskDetailFilterOptions({
+        taskId,
+        option: 'departmentNames',
+        departmentNames: [],
+        monthlyProductionPlans: [],
+        inventoryNames: [],
+      })
       // 兼容 { data: [...] } 与 { data: { data: [...] } } 两种返回结构
       const arr = res?.data?.data ?? res?.data
       remoteDepartmentOptions.value = Array.isArray(arr) ? arr : []

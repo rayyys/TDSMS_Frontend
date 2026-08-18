@@ -244,16 +244,23 @@ export function getTaskDetail(params) {
 
 /**
  * 获取计划明细筛选选项（用于构建多选下拉框）
- * GET /task/detailFilterOptions
- * 返回当前用户指定任务中去重后的部门 / 月度生产计划 / 存货名称
- * @param {Object} params { taskId, option }  option: departmentNames / monthlyProductionPlans / inventoryNames
+ * POST /task/detailFilterOptions
+ * 获取当前用户指定任务中去重后的部门 / 月度生产计划 / 存货名称，
+ * 请求体可携带三个筛选的当前已选值，后端据此联动计算各下拉框的可用选项
+ * @param {Object} params {
+ *   taskId,                        // 任务 ID
+ *   option,                        // 取值：departmentNames / monthlyProductionPlans / inventoryNames
+ *   departmentNames: string[],     // 当前已选部门（联动上下文，可选，未选传空数组）
+ *   monthlyProductionPlans: [],    // 当前已选月度生产计划（联动上下文，可选，未选传空数组）
+ *   inventoryNames: string[],      // 当前已选存货名称（联动上下文，可选，未选传空数组）
+ * }
  * @returns {Promise} data: string[] 如 ["302车间", "303车间"]
  */
 export function getTaskDetailFilterOptions(params) {
   return request({
-    method: 'get',
+    method: 'post',
     url: '/task/detailFilterOptions',
-    params,
+    data: params,
   })
 }
 

@@ -63,9 +63,7 @@
         <ApsDataPanel
           v-else
           :plan-state="planState"
-          :filtered-table-data="displayTableData"
-          :header-cell-style="headerCellStyle"
-          :cell-style="cellStyle"
+          :filtered-table-data="filteredTableData"
           @cancel-selection="onCancelSelection"
           @batch-delete="onBatchDelete"
           @reset-search="onResetSearch"
@@ -104,14 +102,11 @@ const {
   planList,
   activePlanId,
   planState,
-  displayTableData,
+  filteredTableData,
   listLoading,
   onAddPlan,
   onSelectPlan,
   onDeletePlan,
-  // 表格样式
-  headerCellStyle,
-  cellStyle,
   // Excel 上传与解析
   uploadDragOver,
   fileInputRef,
