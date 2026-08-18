@@ -2,19 +2,13 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import vue from '@vitejs/plugin-vue'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import postcssPxToRem from 'postcss-pxtorem'
-import { viteMockServe } from 'vite-plugin-mock'
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  // 是否启用本地 mock（无后端时开发联调用），由 VITE_USE_MOCK 环境变量控制
-  // 后端接口就绪后，把 .env.development 里的 VITE_USE_MOCK 改为 false 即可关闭
-  const useMock = env.VITE_USE_MOCK === 'true'
-
+export default defineConfig(() => {
   return {
     plugins: [
       vue(),
@@ -29,13 +23,6 @@ export default defineConfig(({ mode }) => {
         resolvers: [ElementPlusResolver()],
         dts: 'src/components.d.ts',
       }),
-      // 本地 mock：拦截 /tdsms 开头的请求返回模拟数据，便于无后端时开发联调
-      // 插件以 enforce: 'pre' 注册，先于代理中间件执行，因此无需改动下方 proxy
-      viteMockServe({
-        mockPath: 'mock',
-        enable: useMock,
-        logger: true,
-      }),
     ],
     resolve: {
       alias: {
@@ -48,7 +35,6 @@ export default defineConfig(({ mode }) => {
       open: true,
       proxy: {
         // 开发环境代理：将 /tdsms 转发到后端，解决浏览器 CORS 限制
-        // mock 开启时会优先被拦截，mock 关闭后走此代理请求真实后端       
         // 前端8006 后端8007，ip不变
         '/tdsms': {
           //服务器

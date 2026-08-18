@@ -55,7 +55,6 @@ export function useDataUpload() {
   // 页面加载时确保方案列表已拉取（登录后已预拉取，此处复用 store 缓存，不会重复请求）
   onMounted(() => {
     apsStore.ensurePlanList()
-    autoImportTemplate()
   })
 
   // 方案在档案页被删除后，若当前下拉框仍选中失效方案，则联动清空，避免携带不存在的 archiveId 提交
@@ -80,33 +79,6 @@ export function useDataUpload() {
     return !!opt && !opt.isSaved
   }
 
-  // mock 模式下进入页面自动导入默认模板文件（docs/药业车间分解编排计划表模板.xlsx），
-  // 便于无后端时直接预览上传与任务数据页内容；非 mock 环境不触发。
-  async function autoImportTemplate() {
-    if (import.meta.env.VITE_USE_MOCK !== 'true') return
-    // 已存在任务信息时不重复导入，避免覆盖用户后续手动上传
-    if (schedulingStore.taskInfo?.importId) return
-    try {
-      const formData = new FormData()
-      formData.append('file', new File([new Blob()], '药业车间分解编排计划表模板.xlsx'))
-      formData.append('remark', '')
-      const res = await importTask(formData)
-      const result = res?.data
-      if (result?.success === false) return
-      const taskData = result?.data || result || {}
-      // 展示已上传文件（mock 返回文档字段 originalFileName）
-      schedulingStore.setUploadedFile({
-        name: taskData.originalFileName || '药业车间分解编排计划表模板.xlsx',
-      })
-      if (taskData.importId) {
-        schedulingStore.setTaskInfo(taskData)
-      }
-      ElMessage.success('已自动导入默认模板文件')
-    } catch (e) {
-      // mock 下自动导入失败时不打扰用户，可手动上传
-    }
-  }
-
   // ==================== 下一步校验 ====================
   async function handleNext() {
     const hasApsArchive = Boolean(apsArchiveId.value)
@@ -122,7 +94,9 @@ export function useDataUpload() {
     }
     // 草稿方案未保存为档案，无真实 archiveId，需先到档案页保存后才能继续
     if (isSelectedPlanDraft()) {
-      ElMessage.warning('所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再继续。')
+      ElMessage.warning(
+        '所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再继续。',
+      )
       return
     }
     if (!hasUploadedFile) {
@@ -192,7 +166,9 @@ export function useDataUpload() {
     }
     // 草稿方案未保存为档案，无真实 archiveId，拦截上传
     if (isSelectedPlanDraft()) {
-      ElMessage.warning('所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再上传计划文件')
+      ElMessage.warning(
+        '所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再上传计划文件',
+      )
       return
     }
 
