@@ -448,3 +448,85 @@
   background: #fff;
   z-index: 50;
 }
+
+// ============== 数据匹配校验弹窗 ==============
+.data-match-check-dialog {
+  :deep(.el-dialog__header) {
+    padding: 16px 20px;
+    margin-right: 0;
+    border-bottom: 1px solid #ebeef5;
+  }
+
+  :deep(.el-dialog__title) {
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  :deep(.el-dialog__body) {
+    padding: 20px;
+  }
+
+  :deep(.el-dialog__footer) {
+    padding: 12px 20px;
+    border-top: 1px solid #ebeef5;
+  }
+
+  .match-check-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .match-check-tips {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background-color: #fffaf0;
+    border-radius: 6px;
+    border: 1px solid #ffe4b3;
+  }
+
+  .match-check-icon {
+    flex-shrink: 0;
+    font-size: 20px;
+    color: #e6a23c;
+    margin-top: 2px;
+  }
+
+  .match-check-text {
+    font-size: 14px;
+    color: #606266;
+    line-height: 1.6;
+  }
+
+  .match-check-count {
+    font-size: 14px;
+    color: #606266;
+
+    .count-num {
+      color: #f56c6c;
+      font-weight: 600;
+    }
+  }
+
+  .match-check-table {
+    :deep(.el-table__header th) {
+      background-color: #f5f7fa;
+      color: #303133;
+      font-weight: 600;
+    }
+  }
+
+  .match-check-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .el-button {
+      height: 36px;
+      padding: 0 20px;
+    }
+  }
+}

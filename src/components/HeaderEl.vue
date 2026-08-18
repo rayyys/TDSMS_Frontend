@@ -68,7 +68,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSchedulingStore } from '@/stores/scheduling'
@@ -114,15 +114,54 @@ function isTabActive(tabKey) {
   return false
 }
 
+// 任务流是否处于进行状态：存在已创建任务（taskId/importId）或曾发起求解（含进行中/已结束）
+const isTaskFlowInProgress = computed(
+  () =>
+    Boolean(schedulingStore.taskInfo?.taskId || schedulingStore.taskInfo?.importId) ||
+    schedulingStore.solveStatus !== 'idle',
+)
+
+// 再次点击"新建任务"标签：任务流进行中时二次确认，确认后清空当前任务并回到任务上传页
+// 在模型求解页触发时，行为与操作栏"返回任务上传页面"按钮一致（含停止后端求解）
+async function handleRestartTask() {
+  try {
+    await ElMessageBox.confirm('是否开始新的任务？', '新建任务', {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+    })
+    await schedulingStore.backToUpload()
+    router.push('/upload')
+  } catch {
+    // 用户取消
+  }
+}
+
 // 点击 tab：若已在对应路由则不重复跳转，避免触发无意义重渲染
 function goToTab(tabKey) {
   if (tabKey === 'aps') {
     if (route.path === APS_PATH) return
+    // 记录进入档案页前的来源工作流页面，供"新建任务"标签返回原页面（非工作流来源不记录）
+    if (WORKFLOW_PATHS.includes(route.path)) {
+      schedulingStore.setApsOrigin(route.path)
+    }
     router.push(APS_PATH)
     return
   }
   if (tabKey === 'workflow') {
-    if (WORKFLOW_PATHS.includes(route.path)) return
+    // 已在档案页：优先返回进入档案页前的来源页面，恢复原页面状态
+    if (route.path === APS_PATH) {
+      const origin = schedulingStore.apsOriginPath
+      router.push(WORKFLOW_PATHS.includes(origin) ? origin : '/upload')
+      return
+    }
+    // 已处于"新建任务"工作流中：任务进行中时再次点击需二次确认后重开新任务
+    if (WORKFLOW_PATHS.includes(route.path)) {
+      if (isTaskFlowInProgress.value) {
+        handleRestartTask()
+      }
+      return
+    }
     router.push('/upload')
   }
 }

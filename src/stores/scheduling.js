@@ -75,6 +75,15 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     clearSession()
   }
 
+  // 进入 APS 排产信息档案页前的来源工作流路径（供"新建任务"标签返回原页面）
+  // 仅工作流路径才记录；非工作流来源（如账号管理）不记录，保持 null
+  const apsOriginPath = ref(saved?.apsOriginPath ?? null)
+  // 记录来源路径并立即持久化，防止在档案页刷新后丢失
+  function setApsOrigin(path) {
+    apsOriginPath.value = path
+    persistState()
+  }
+
   // —— 任务数据 ——
   // sheetDataMap: { [sheetName]: { columns, rows, annotated } }
   const sheetDataMap = ref({})
@@ -240,6 +249,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       selectedDepartment: selectedDepartment.value,
       solveStatus: solveStatus.value,
       solveInfo: solveInfo.value,
+      apsOriginPath: apsOriginPath.value,
       // 缓存"总运行时长"和"求解日志"数据，页面关闭后自动清空
       frontendPrefixLogs: frontendPrefixLogs.value,
       backendLogs: backendLogs.value,
@@ -683,6 +693,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     maxVisitedStepIndex.value = 0
     clearUploadedFile()
     clearSession()
+    apsOriginPath.value = null
     solveStatus.value = 'idle'
     solveProgress.value = 0
     frontendPrefixLogs.value = []
@@ -692,6 +703,21 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     solveElapsed.value = 0
     hasFeasibleSolution.value = false
     isOptimal.value = false
+  }
+
+  /**
+   * 返回任务上传页面的重置动作：若后端正在求解先通知停止，再清空整个工作流状态
+   * 由"返回任务上传页面"按钮与"新建任务"标签共用，页面跳转由调用方负责
+   */
+  async function backToUpload() {
+    if (solveStatus.value === 'running' && solveInfo.value?.solveTaskId) {
+      try {
+        await stopSolveApi({ solveTaskId: solveInfo.value.solveTaskId })
+      } catch {
+        // 后端停止失败不阻塞前端重置流程
+      }
+    }
+    resetAll()
   }
 
   /**
@@ -850,6 +876,10 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     finishSolve,
     resumePolling,
     getGoalLabel,
+    // APS 档案页来源路径 / 返回上传页重置动作
+    apsOriginPath,
+    setApsOrigin,
+    backToUpload,
     // 重置
     resetSolveState,
     resetAll,

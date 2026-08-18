@@ -1,6 +1,7 @@
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import * as XLSX from 'xlsx'
 import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
 import { useApsStore } from '@/stores/aps'
 import { loadApsDraftStates, saveApsDraftStates } from '@/utils/apsStorage'
@@ -13,6 +14,13 @@ import {
   downloadApsTemplate,
   getApsArchiveItems,
 } from '@/api/scheduling'
+
+/**
+ * 大数据量时分片渲染的每片大小（单位：行）
+ * 首次渲染与每次滚动接近底部时追加的行数均由该常量决定，
+ * 需要调整渲染节奏时只需修改此处一处
+ */
+const APS_RENDER_STEP = 10
 
 /**
  * 创建单个方案的默认状态
@@ -39,9 +47,9 @@ function createPlanState() {
     // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
     detailLoaded: false,
     // 大数据量时分片渲染：当前已渲染行数（滚动到底自动追加），避免一次性渲染全部行导致卡顿
-    renderCount: 200,
-    // 每次滚动到底追加的行数
-    renderStep: 200,
+    renderCount: APS_RENDER_STEP,
+    // 每次滚动到底追加的行数（由顶部常量 APS_RENDER_STEP 统一配置）
+    renderStep: APS_RENDER_STEP,
   }
 }
 
@@ -181,17 +189,32 @@ export function useApsArchive() {
     })
   })
 
-  // 表格实际渲染的数据：按片渲染，滚动接近底部时自动追加下一片（分片渲染，保持从上至下滚动体验）
+  // 表格实际渲染的数据：按片渲染（先渲染第一个分片快速进入，再后台自动补全）
   const displayTableData = computed(() => {
     const rows = filteredTableData.value
     return rows.slice(0, planState.value.renderCount)
   })
 
-  // 搜索条件变化后重置已渲染片数，避免停留在空白区域
+  // 后台自动分片加载：首屏只渲染第一个分片（减少 DOM 渲染压力，快速进入方案页面），
+  // 之后每帧按分片步长追加渲染下一片，直至渲染全部行，保持从上至下滚动查看全部数据的体验。
+  // 使用 requestAnimationFrame 逐片推进，给浏览器留出布局与绘制的帧间隙，避免一次性渲染全部行导致卡顿
+  let loadAllRafId = null
+  function autoLoadAllRows() {
+    // 取消上一轮调度，避免切换方案/搜索时多个加载循环并发叠加
+    cancelAnimationFrame(loadAllRafId)
+    const state = planState.value
+    const total = filteredTableData.value.length
+    if (state.renderCount >= total) return
+    state.renderCount = Math.min(total, state.renderCount + state.renderStep)
+    loadAllRafId = requestAnimationFrame(autoLoadAllRows)
+  }
+
+  // 搜索条件变化后重置已渲染片数，并自动分片加载搜索结果
   watch(
     () => planState.value.searchQuery,
     () => {
       planState.value.renderCount = planState.value.renderStep
+      autoLoadAllRows()
     },
   )
 
@@ -204,14 +227,6 @@ export function useApsArchive() {
       }
     },
   )
-
-  // 滚动加载更多：追加渲染下一片（幂等，达到总行数后不再增长）
-  function loadMoreRows() {
-    const state = planState.value
-    const total = filteredTableData.value.length
-    if (state.renderCount >= total) return
-    state.renderCount = Math.min(total, state.renderCount + state.renderStep)
-  }
 
   // 下一个方案的序号
   function nextPlanNo() {
@@ -235,8 +250,13 @@ export function useApsArchive() {
   function onSelectPlan(planId) {
     if (planId === activePlanId.value) return
     apsStore.selectPlan(planId)
+    // 每次切换都重置已渲染片数为第一个分片：先只渲染首片快速进入，
+    // 避免重复切换回已加载完的方案时一次性渲染全部行导致卡顿
+    planState.value.renderCount = planState.value.renderStep
     // 切换到已保存但明细尚未加载过的方案时，拉取其明细数据
     loadPlanDetail(getActivePlan())
+    // 切换方案后自动分片加载：先渲染首片快速进入，再后台补全剩余数据
+    autoLoadAllRows()
   }
 
   // 删除方案：已保存方案先删除后端数据（避免刷新后重新出现），再清理本地缓存
@@ -306,6 +326,9 @@ export function useApsArchive() {
       state.editingRow = null
       state.newRowIndex = null
       state.detailLoaded = true
+      // 重置分片渲染进度后自动分片加载：先渲染首片快速进入，再后台补全剩余数据
+      state.renderCount = state.renderStep
+      autoLoadAllRows()
     } catch (err) {
       const status = err?.response?.status
       if (status === 401) {
@@ -359,7 +382,11 @@ export function useApsArchive() {
       }
       state.uploadedFileName = saved.uploadedFileName || ''
       state.hasImported = !!saved.hasImported
+      // 重置分片渲染进度，保证恢复的数据立即可见
+      state.renderCount = state.renderStep
     }
+    // 草稿数据恢复后自动分片加载当前方案
+    autoLoadAllRows()
   }
 
   // 收集当前草稿方案的表格数据，写入 localStorage
@@ -443,6 +470,9 @@ export function useApsArchive() {
       const parsed = await parseExcelFile(file)
       const rows = parseApsSheetToRows(parsed)
       state.tableData = rows
+      // 重置分片渲染进度，立即刷新表格区域：避免沿用上一份数据遗留的渲染进度（如 0）导致新数据不显示
+      state.renderCount = state.renderStep
+      autoLoadAllRows()
       state.uploadedFileName = file.name
       state.hasImported = true
       state.selectedRows = []
@@ -520,6 +550,55 @@ export function useApsArchive() {
       }
     }
     return row
+  }
+
+  // ================== 本地数据重建 Excel（刷新后原始文件丢失的兜底） ==================
+  // 表格字段 → 模板数据列 的列序（与 parseApsSheetToRows 中的下标一一对应）
+  const ROW_TO_APS_COLUMNS = [
+    'product', 'packageSpec', 'dispensingLine', 'batchQty', 'shiftOutput',
+    'dispensingStaff', 'pressMachine', 'pressOutput', 'pressStaff',
+    'coatingMachine', 'coatingOutput', 'coatingStaff', 'fillingEquip',
+    'fillingOutput', 'fillingStaff', 'packingEquip', 'packingOutput',
+    'manualOutput', 'packingStaff', 'cycleDays', 'isProcurement', 'annualSales',
+  ]
+  // 模板首行（合并组表头）与次行（字段表头），与 docs/APS排产信息.xlsx 保持一致
+  const APS_HEADER_ROW1 = [
+    '品种', '包装规格', '配料', '', '', '', '压片', '', '', '包衣', '', '',
+    '分装/铝塑', '', '', '包装', '', '', '', '生产周期/天', '是否集采品种', '年销量/万',
+  ]
+  const APS_HEADER_ROW2 = [
+    '', '', '配料线体', '批量（万片/粒）', '班产量（万片）', '用人', '压片机', '班产量',
+    '用人', '包衣机', '班产量', '用人', '操作间及设备', '班产量（万片）', '用人',
+    '操作间及设备', '班产量（万片）', '手工包装（1人产量）', '用人', '', '', '',
+  ]
+  // 首行组表头的横向合并区间（起始列 → 结束列）
+  const APS_HEADER_MERGES = [
+    [2, 5], [6, 8], [9, 11], [12, 14], [15, 18],
+  ]
+  // 首行与次行跨行纵向合并的列（品种/包装规格/生产周期/集采/年销量）
+  const APS_HEADER_VERTICAL_MERGES = [0, 1, 19, 20, 21]
+
+  // 用本地表格数据重建 APS 模板格式的 Excel 文件
+  // 原始 File 对象仅存内存，刷新或切换页面后丢失；此时表格数据仍在，
+  // 按模板结构（合并表头 + 数据行）重新生成文件后即可正常上传保存
+  function buildApsExcelFile(tableData, fileName) {
+    const aoa = [
+      APS_HEADER_ROW1.slice(),
+      APS_HEADER_ROW2.slice(),
+      ...tableData.map((row) => ROW_TO_APS_COLUMNS.map((key) => row[key] ?? '')),
+    ]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    // 恢复模板的合并单元格，保证后端按模板结构解析
+    ws['!merges'] = [
+      ...APS_HEADER_MERGES.map(([start, end]) => ({ s: { r: 0, c: start }, e: { r: 0, c: end } })),
+      ...APS_HEADER_VERTICAL_MERGES.map((c) => ({ s: { r: 0, c }, e: { r: 1, c } })),
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    return new File([buf], fileName, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
   }
 
   // 下载模板：调用后端接口获取 APS 排产信息模板文件
@@ -671,10 +750,18 @@ export function useApsArchive() {
     }
 
     // 场景二：首次保存 → 上传 Excel 文件给后端解析，创建 APS 方案
-    // 校验：必须先上传 Excel 文件
+    // 校验：必须有可上传的文件。草稿方案在刷新/切换页面后原始 File 对象会丢失，
+    // 此时本地仍保留已解析的表格数据，按模板结构重建 Excel 后再上传，无需重复选择文件
     if (!state.rawFile) {
-      ElMessage.warning('请先上传 Excel 文件')
-      return
+      const canRebuild = !isSavedArchive(activePlan) && state.tableData.length
+      if (!canRebuild) {
+        ElMessage.warning('请先上传 Excel 文件')
+        return
+      }
+      state.rawFile = buildApsExcelFile(
+        state.tableData,
+        `${activePlan?.name || '未命名方案'}.xlsx`,
+      )
     }
 
     // 获取当前方案名称作为 archiveName
@@ -860,8 +947,6 @@ export function useApsArchive() {
     onAddRow,
     onExportTable,
     onSaveTable,
-    // 分片渲染（滚动加载更多）
-    loadMoreRows,
     // 行操作
     onEditRow,
     onDeleteRow,

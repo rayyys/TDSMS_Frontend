@@ -609,7 +609,6 @@ const emit = defineEmits([
   'save-table',
   'edit-row',
   'delete-row',
-  'load-more',
   'trigger-file-input',
 ])
 
@@ -832,14 +831,11 @@ function onColumnLayoutReady() {
 
 onMounted(() => {
   bindHScroll()
-  // 监听纵向滚动：接近底部时触发分片加载
-  wrapRef.value?.addEventListener('scroll', onWrapScroll)
   window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  wrapRef.value?.removeEventListener('scroll', onWrapScroll)
   if (tableScrollWrap) tableScrollWrap.removeEventListener('scroll', syncHScroll)
 })
 
@@ -934,16 +930,6 @@ function onEditRow(row, index) {
 
 function onDeleteRow(row) {
   emit('delete-row', row)
-}
-
-// 纵向滚动接近底部时触发加载更多（分片渲染追加下一片，保持从上至下滚动体验）
-function onWrapScroll() {
-  const wrap = wrapRef.value
-  if (!wrap) return
-  const distance = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight
-  if (distance < 120) {
-    emit('load-more')
-  }
 }
 
 function onClickImport() {

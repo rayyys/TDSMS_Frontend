@@ -2,7 +2,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useSchedulingStore } from '@/stores/scheduling'
-import { getTaskDetail } from '@/api/scheduling'
+import { getTaskDetail, getTaskDetailFilterOptions } from '@/api/scheduling'
 
 /**
  * 任务数据导入明细页 - composable
@@ -79,34 +79,86 @@ export function useTaskData() {
   const uploadTime = computed(() => schedulingStore.taskInfo?.uploadTime || '')
 
   // —— 筛选下拉选项 ——
-  // 从已加载的 rawRows 中动态提取「部门 / 存货名称」的去重值；
-  // 「生产计划」为月份类筛选，提供最近 6 个月固定选项。
-  const departmentOptions = computed(() => {
+  // 从后端 /task/detailFilterOptions 接口按 taskId 动态获取去重后的部门 / 月度生产计划 / 存货名称。
+  // 部门 / 存货名称直接使用后端返回的字符串数组；生产计划模板要求 { value, label } 结构，在此统一转换。
+  // 后端接口未就绪 / 返回为空时，回退到当前页数据提取的去重值，保证下拉框始终有可用选项。
+  const remoteDepartmentOptions = ref([])
+  const remoteInventoryOptions = ref([])
+  const remoteProductionPlanOptions = ref([])
+  const filterOptionsLoading = ref(false)
+
+  // 从已加载的 rawRows 中动态提取「部门 / 存货名称」的去重值（作为后端兜底）
+  const localDepartmentOptions = computed(() => {
     const set = new Set()
     rawRows.value.forEach((r) => {
       if (r.department) set.add(r.department)
     })
     return Array.from(set)
   })
-  const inventoryOptions = computed(() => {
+  const localInventoryOptions = computed(() => {
     const set = new Set()
     rawRows.value.forEach((r) => {
       if (r.materialName) set.add(r.materialName)
     })
     return Array.from(set)
   })
-  const productionPlanOptions = computed(() => {
-    // 默认展示最近 6 个月（如 2026-03 ~ 2026-08），可按需扩展
-    const now = new Date()
-    const list = []
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const label = `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月`
-      list.push({ value: v, label })
+
+  // 导出给模板的选项：优先用后端数据，为空时回退到本地提取值
+  const departmentOptions = computed(() =>
+    remoteDepartmentOptions.value.length > 0 ? remoteDepartmentOptions.value : localDepartmentOptions.value,
+  )
+  const inventoryOptions = computed(() =>
+    remoteInventoryOptions.value.length > 0 ? remoteInventoryOptions.value : localInventoryOptions.value,
+  )
+  const productionPlanOptions = computed(() =>
+    remoteProductionPlanOptions.value.map((p) => ({ value: p, label: p })),
+  )
+
+  /**
+   * 拉取筛选下拉选项
+   * 并发请求部门 / 月度生产计划 / 存货名称三类选项，taskId 兼容上传与历史导入两种来源
+   */
+  async function fetchFilterOptions() {
+    // 未获取到任务 ID（尚未上传 / 历史导入）时清空选项
+    const taskId = schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId
+    if (!taskId) {
+      remoteDepartmentOptions.value = []
+      remoteInventoryOptions.value = []
+      remoteProductionPlanOptions.value = []
+      return
     }
-    return list
-  })
+    filterOptionsLoading.value = true
+    try {
+      // 三类选项互不依赖，并发请求提升加载速度
+      const [deptRes, planRes, invRes] = await Promise.all([
+        getTaskDetailFilterOptions({ taskId, option: 'departmentNames' }),
+        getTaskDetailFilterOptions({ taskId, option: 'monthlyProductionPlans' }),
+        getTaskDetailFilterOptions({ taskId, option: 'inventoryNames' }),
+      ])
+      // 兼容 { data: [...] } 与 { data: { data: [...] } } 两种返回结构
+      const toArray = (res) => {
+        const arr = res?.data?.data ?? res?.data
+        return Array.isArray(arr) ? arr : []
+      }
+      remoteDepartmentOptions.value = toArray(deptRes)
+      remoteProductionPlanOptions.value = toArray(planRes)
+      remoteInventoryOptions.value = toArray(invRes)
+    } catch (err) {
+      // 接口异常不打扰用户，清空远程选项后自动回退到本地提取值
+      remoteDepartmentOptions.value = []
+      remoteInventoryOptions.value = []
+      remoteProductionPlanOptions.value = []
+    } finally {
+      filterOptionsLoading.value = false
+    }
+  }
+
+  // 任务信息（taskId）变化时重新拉取选项，覆盖上传 / 历史导入 / 刷新恢复等场景
+  watch(
+    () => schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId,
+    () => fetchFilterOptions(),
+    { immediate: true },
+  )
 
   // —— 过滤后的数据（前端二次过滤，服务端按基础参数返回数据后本地按筛选 / 关键字过滤） ——
   const filteredRows = computed(() => {
@@ -316,6 +368,7 @@ export function useTaskData() {
     departmentOptions,
     inventoryOptions,
     productionPlanOptions,
+    filterOptionsLoading,
     // 搜索 / 翻页
     keyword,
     currentPage,

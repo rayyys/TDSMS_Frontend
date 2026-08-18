@@ -126,8 +126,8 @@
               show-overflow-tooltip
             />
             <el-table-column
-              prop="taskName"
-              label="任务名称"
+              prop="apsName"
+              label="方案名称"
               :width="getColWidth(historyTableColumns[1])"
               show-overflow-tooltip
             />
@@ -144,7 +144,7 @@
               show-overflow-tooltip
             />
             <el-table-column
-              prop="uploadUserName"
+              prop="createdBy"
               label="上传人"
               :width="getColWidth(historyTableColumns[4])"
               align="center"
@@ -202,10 +202,10 @@ import { useDataUpload } from './useDataUpload'
 // 历史记录弹窗表格列配置，供 AdaptiveTableContainer 自适应计算列宽
 const historyTableColumns = computed(() => [
   { key: 'taskNo', label: '任务编号', width: 140 },
-  { key: 'taskName', label: '任务名称', width: 200 },
+  { key: 'apsName', label: '方案名称', width: 200 },
   { key: 'fileName', label: '文件名', width: 200 },
   { key: 'taskRemark', label: '备注', width: 120 },
-  { key: 'uploadUserName', label: '上传人', width: 100 },
+  { key: 'createdBy', label: '上传人', width: 100 },
   { key: 'createTime', label: '上传时间', width: 160 },
   { key: 'actions', label: '操作', width: 160, type: 'action' },
 ])

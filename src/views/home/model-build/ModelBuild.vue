@@ -21,6 +21,7 @@
           placeholder="请选择车间"
           class="department-select"
           :disabled="isModelBuildLocked"
+          :loading="departmentOptionsLoading"
           style="width: 15.25rem !important"
         >
           <el-option
@@ -196,7 +197,7 @@
         <div class="capacity-block">
           <!-- 早班人员容量 -->
           <div class="capacity-group">
-            <div class="capacity-group-title">早班人员容量</div>
+            <div class="capacity-group-title"></div>
             <div class="capacity-row">
               <div
                 v-for="key in capacityKeys"
@@ -283,7 +284,7 @@
         :class="{ 'btn-disabled': !canStartSolve }"
         :loading="solvingLoading"
         :disabled="isSolveBtnDisabled"
-        @click="handleStartSolve"
+        @click="handleStartSolve('SKIP')"
       >
         {{ solveBtnText }}
       </el-button>
@@ -292,10 +293,55 @@
 
   <!-- 底部吸底占位盒：位于操作栏下方，吸底定位 -->
   <div class="action-bar-space"></div>
+
+  <!-- 数据匹配校验弹窗：start 接口返回未匹配 APS 档案记录时展示 -->
+  <el-dialog
+    v-model="matchCheckVisible"
+    title="数据匹配校验"
+    width="720px"
+    align-center
+    destroy-on-close
+    class="data-match-check-dialog"
+    :close-on-click-modal="false"
+  >
+    <div class="match-check-body">
+      <div class="match-check-tips">
+        <el-icon class="match-check-icon"><Warning /></el-icon>
+        <span class="match-check-text">
+          检测到部分【存货名称+规格】在APS排产信息表中未找到对应的【品种+包装规格】，这些记录将不会参与本次求解。
+        </span>
+      </div>
+      <div class="match-check-count">
+        缺失记录数量：<span class="count-num">{{ matchCheckData.unmatchedCount }}</span> 条
+      </div>
+      <el-table
+        :data="matchCheckData.records"
+        class="match-check-table"
+        height="320"
+        border
+      >
+        <el-table-column prop="inventoryName" label="存货名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="specification" label="规格" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="reason" label="未匹配原因" min-width="200" show-overflow-tooltip />
+      </el-table>
+    </div>
+    <template #footer>
+      <div class="match-check-footer">
+        <el-button @click="closeMatchCheckDialog">取消求解</el-button>
+        <el-button
+          :disabled="matchCheckData.matchedCount === 0"
+          @click="handleContinueSolveSkip"
+        >
+          继续求解（跳过缺失项）
+        </el-button>
+        <el-button type="primary" @click="handleGoToApsArchive">前往APS排产信息档案</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { Back } from '@element-plus/icons-vue'
+import { Back, Warning } from '@element-plus/icons-vue'
 import { useModelBuild } from './useModelBuild'
 
 const {
@@ -304,8 +350,15 @@ const {
   solveBtnText,
   canStartSolve,
   departmentOptions,
+  departmentOptionsLoading,
   isSolveBtnDisabled,
   solvingLoading,
+  // 数据匹配校验弹窗
+  matchCheckVisible,
+  matchCheckData,
+  closeMatchCheckDialog,
+  handleContinueSolveSkip,
+  handleGoToApsArchive,
   handlePrev,
   handleStartSolve,
   handleResetDefaults,

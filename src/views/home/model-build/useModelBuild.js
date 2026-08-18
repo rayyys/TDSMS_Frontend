@@ -1,4 +1,4 @@
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useSchedulingStore } from '@/stores/scheduling'
@@ -9,6 +9,7 @@ import {
   getSolveTask,
   getSolveTaskLogs,
   stopSolveTask,
+  getTaskDetailFilterOptions,
 } from '@/api/scheduling'
 
 export function useModelBuild() {
@@ -60,8 +61,12 @@ export function useModelBuild() {
   // 合并两条时间规则，供按钮禁用等逻辑使用
   const hasTimeRuleError = computed(() => hasDeadlineDateError.value || hasIntervalError.value)
 
-  // 部门下拉选项：从任务数据的「部门」列（上传 Excel 解析而来）去重提取
-  const departmentOptions = computed(() => {
+  // 部门下拉选项：从后端 /task/detailFilterOptions 接口按 taskId 动态获取任务「部门」列去重值
+  const remoteDepartmentOptions = ref([])
+  const departmentOptionsLoading = ref(false)
+
+  // 兜底：从任务数据的「部门」列（上传 Excel 解析而来）去重提取，接口未就绪 / 返回为空时使用
+  const localDepartmentOptions = computed(() => {
     const rows = schedulingStore.sheetDataMap['任务数据']?.rows || []
     const set = new Set()
     rows.forEach((row) => {
@@ -70,6 +75,42 @@ export function useModelBuild() {
     })
     return Array.from(set)
   })
+
+  // 导出给模板的选项：优先用后端数据，为空时回退到本地提取值
+  const departmentOptions = computed(() =>
+    remoteDepartmentOptions.value.length > 0 ? remoteDepartmentOptions.value : localDepartmentOptions.value,
+  )
+
+  /**
+   * 拉取部门下拉选项
+   * taskId 兼容上传与历史导入两种来源；接口异常 / 返回为空时回退到本地提取的部门值
+   */
+  async function fetchDepartmentOptions() {
+    const taskId = schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId
+    if (!taskId) {
+      remoteDepartmentOptions.value = []
+      return
+    }
+    departmentOptionsLoading.value = true
+    try {
+      const res = await getTaskDetailFilterOptions({ taskId, option: 'departmentNames' })
+      // 兼容 { data: [...] } 与 { data: { data: [...] } } 两种返回结构
+      const arr = res?.data?.data ?? res?.data
+      remoteDepartmentOptions.value = Array.isArray(arr) ? arr : []
+    } catch (err) {
+      // 接口异常不打扰用户，清空远程选项后自动回退到本地提取值
+      remoteDepartmentOptions.value = []
+    } finally {
+      departmentOptionsLoading.value = false
+    }
+  }
+
+  // 任务信息（taskId）变化时重新拉取部门选项，覆盖上传 / 历史导入 / 刷新恢复等场景
+  watch(
+    () => schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId,
+    () => fetchDepartmentOptions(),
+    { immediate: true },
+  )
 
   // ===== 必填项实时校验 =====
   // 单个字段有效性：字符串需非空，数值需为有效数字（null/undefined/NaN 视为无效）
@@ -136,7 +177,48 @@ export function useModelBuild() {
   // 校验未通过时不启用原生禁用，保留可点击状态以给出友好提示（视觉置灰由 canStartSolve 控制）
   const isSolveBtnDisabled = computed(() => solvingLoading.value)
 
-  async function handleStartSolve() {
+  // 数据匹配校验弹窗显隐与数据
+  const matchCheckVisible = ref(false)
+  const matchCheckData = ref({
+    department: '',
+    matchedCount: 0,
+    unmatchedCount: 0,
+    records: [],
+  })
+
+  /**
+   * 根据名称和规格映射状态计算未匹配原因
+   * @param {Object} record 单条未匹配记录
+   * @returns {string} 未匹配原因文案
+   */
+  function getUnmatchReason(record) {
+    const { nameMapped, specificationMapped } = record
+    if (!nameMapped && !specificationMapped) return 'APS中未找到对应的品种+包装规格'
+    if (!nameMapped) return 'APS中未找到对应的品种'
+    if (!specificationMapped) return 'APS中未找到对应的包装规格'
+    return 'APS中未找到对应的品种+包装规格'
+  }
+
+  // 打开数据匹配校验弹窗
+  function openMatchCheckDialog(data) {
+    matchCheckData.value = {
+      department: data.department || '',
+      matchedCount: data.matchedCount || 0,
+      unmatchedCount: data.unmatchedCount || 0,
+      records: (data.unmatchedRecords || []).map((record) => ({
+        ...record,
+        reason: getUnmatchReason(record),
+      })),
+    }
+    matchCheckVisible.value = true
+  }
+
+  // 关闭数据匹配校验弹窗
+  function closeMatchCheckDialog() {
+    matchCheckVisible.value = false
+  }
+
+  async function handleStartSolve(policy = 'SKIP') {
     const status = schedulingStore.solveStatus
 
     // running（求解中）和 done（已完成）：直接跳转查看，不触发提交
@@ -169,14 +251,14 @@ export function useModelBuild() {
       return
     }
 
-    // 获取 importId（由 /task/import 或 /tasks/historyImport 返回）
-    const importId = schedulingStore.taskInfo?.importId
-    if (!importId) {
+    // 获取任务 ID（由 /task/import 或 /tasks/historyImport 返回），兼容 taskId / importId 两种来源
+    const taskId = schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId
+    if (!taskId) {
       ElMessage.warning('未获取到任务ID，请重新上传文件')
       return
     }
 
-    // 人员容量中文键 → 英文键映射（与接口文档 personnelCapacity 字段对齐）
+    // 人员容量中文键 → 英文键映射（与接口 personnelCapacity 字段对齐）
     const CAPACITY_KEY_MAP = { 配料: 'mixing', 压片: 'tableting', 包衣: 'coating', 包装: 'packaging' }
     function mapCapacityKeys(capacity) {
       const result = {}
@@ -186,10 +268,13 @@ export function useModelBuild() {
       return result
     }
 
-    // 按接口文档 POST /solve/start 组装嵌套参数结构
+    // 按后端接口参考体（message/solve.txt）组装 POST /solve/start 请求体：
+    // taskId + department 必传，personnelCapacity 为扁平结构，需携带 unmatchedItemPolicy
     const payload = {
-      importId,
+      taskId,
+      department: schedulingStore.selectedDepartment,
       scheduleMonth: schedulingStore.productionMonth,
+      unmatchedItemPolicy: policy,
       productionRules: {
         continuousRunLimitDays: schedulingStore.continuousRunLimit,
         cleaningDuration: {
@@ -202,9 +287,7 @@ export function useModelBuild() {
           shiftCount: schedulingStore.shiftHours,
         },
       },
-      personnelCapacity: {
-        dayShift: mapCapacityKeys(schedulingStore.morningShiftCapacity),
-      },
+      personnelCapacity: mapCapacityKeys(schedulingStore.morningShiftCapacity),
       solverTimeLimitMinutes: Math.round(Number(schedulingStore.maxSolveTime) / 60),
     }
 
@@ -250,8 +333,14 @@ export function useModelBuild() {
       const errStatus = error?.response?.status
       const errData = error?.response?.data
       if (errStatus === 409) {
-        // 409：当前任务已有正在执行的求解任务，提示用户勿重复提交
-        ElMessage.warning(errData?.message || '当前任务正在求解，请勿重复提交')
+        // 409 存在两种业务语义：
+        // 1) 存在未匹配 APS 档案的计划数据，需弹窗让用户选择取消/跳过/前往档案；
+        // 2) 当前任务已有正在执行的求解任务，提示用户勿重复提交。
+        if (errData?.data?.unmatchedRecords) {
+          openMatchCheckDialog(errData.data)
+        } else {
+          ElMessage.warning(errData?.message || '当前任务正在求解，请勿重复提交')
+        }
         solvingLoading.value = false
       } else if (errStatus === 401) {
         // 401 已在响应拦截器中统一处理（提示 + 跳转）
@@ -264,6 +353,29 @@ export function useModelBuild() {
         solvingLoading.value = false
       }
     }
+  }
+
+  // 弹窗中点击「继续求解（跳过缺失项）」：关闭弹窗并以 SKIP 策略重新提交
+  async function handleContinueSolveSkip() {
+    if (matchCheckData.value.matchedCount === 0) {
+      ElMessage.warning('当前部门无可匹配记录，无法继续求解')
+      return
+    }
+    closeMatchCheckDialog()
+    solvingLoading.value = true
+    try {
+      await handleStartSolve('SKIP')
+    } finally {
+      solvingLoading.value = false
+    }
+  }
+
+  // 弹窗中点击「前往APS排产信息档案」：关闭弹窗并跳转档案页
+  function handleGoToApsArchive() {
+    closeMatchCheckDialog()
+    // 记录来源工作流页面，供档案页"新建任务"标签返回原页面
+    schedulingStore.setApsOrigin(router.currentRoute.value.path)
+    router.push('/aps-archive')
   }
 
   // 排产月份显示（YYYY-MM → YYYY年MM月）
@@ -302,6 +414,7 @@ export function useModelBuild() {
     solveBtnText,
     canStartSolve,
     departmentOptions,
+    departmentOptionsLoading,
     hasDeadlineDateError,
     hasIntervalError,
     hasTimeRuleError,
@@ -310,6 +423,12 @@ export function useModelBuild() {
     solvingLoading,
     // 新结构展示辅助
     productionMonthText,
+    // 数据匹配校验弹窗
+    matchCheckVisible,
+    matchCheckData,
+    closeMatchCheckDialog,
+    handleContinueSolveSkip,
+    handleGoToApsArchive,
     handlePrev,
     handleStartSolve,
     handleResetDefaults,

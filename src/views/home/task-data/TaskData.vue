@@ -17,6 +17,7 @@
               multiple
               collapse-tags
               clearable
+              :loading="filterOptionsLoading"
               popper-class="dept-select-popper"
             >
               <el-option
@@ -37,6 +38,7 @@
               multiple
               collapse-tags
               clearable
+              :loading="filterOptionsLoading"
               popper-class="dept-select-popper"
             >
               <el-option
@@ -57,6 +59,7 @@
               multiple
               collapse-tags
               clearable
+              :loading="filterOptionsLoading"
               popper-class="dept-select-popper"
             >
               <el-option
@@ -184,6 +187,7 @@ const {
   departmentOptions,
   inventoryOptions,
   productionPlanOptions,
+  filterOptionsLoading,
   // 搜索 / 翻页
   keyword,
   currentPage,

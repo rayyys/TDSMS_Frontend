@@ -2,7 +2,6 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSchedulingStore } from '@/stores/scheduling'
-import { stopSolveTask as stopSolveApi } from '@/api/scheduling'
 
 // 步骤与路由的映射
 export const STEP_ROUTES = ['/upload', '/task-data', '/model-build', '/model-solve']
@@ -125,15 +124,8 @@ export function useStepNav() {
           cancelButtonText: '取消',
         },
       )
-      // 若后端正在求解，先通知后端停止，再清前端状态
-      if (schedulingStore.solveStatus === 'running' && schedulingStore.solveInfo?.solveTaskId) {
-        try {
-          await stopSolveApi({ solveTaskId: schedulingStore.solveInfo.solveTaskId })
-        } catch {
-          // 后端停止失败不阻塞前端重置流程
-        }
-      }
-      schedulingStore.resetAll()
+      // 停止后端求解（若进行中）→ 清空工作流状态，动作统一收敛到 store，供"新建任务"标签复用
+      await schedulingStore.backToUpload()
       router.push('/upload')
     } catch {
       // 用户取消

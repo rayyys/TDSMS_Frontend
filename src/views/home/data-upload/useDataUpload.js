@@ -1,4 +1,4 @@
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -46,6 +46,8 @@ export function useDataUpload() {
     if (val === APS_ARCHIVE_ADD) {
       // 跳转前清空选择，避免「新增方案」作为档案被记录
       apsArchiveId.value = ''
+      // 记录来源工作流页面，供档案页"新建任务"标签返回原页面
+      schedulingStore.setApsOrigin(router.currentRoute.value.path)
       router.push('/aps-archive')
     }
   }
@@ -316,6 +318,9 @@ export function useDataUpload() {
     for (const [backendKey, frontendKey] of Object.entries(HISTORY_ROW_MAP)) {
       if (backendKey in row) mapped[frontendKey] = row[backendKey]
     }
+    // 方案名称：后端返回体顶层字段为 apsName，兼容旧数据从嵌套 apsArchive.archiveName 取值
+    mapped.apsName = row.apsName ?? row.apsArchive?.archiveName ?? ''
+    // 上传人：直接使用后端返回的 createdBy 字段
     return mapped
   }
 

@@ -212,13 +212,28 @@ export function getTaskDetail(params) {
   })
 }
 
+/**
+ * 获取计划明细筛选选项（用于构建多选下拉框）
+ * GET /task/detailFilterOptions
+ * 返回当前用户指定任务中去重后的部门 / 月度生产计划 / 存货名称
+ * @param {Object} params { taskId, option }  option: departmentNames / monthlyProductionPlans / inventoryNames
+ * @returns {Promise} data: string[] 如 ["302车间", "303车间"]
+ */
+export function getTaskDetailFilterOptions(params) {
+  return request({
+    method: 'get',
+    url: '/task/detailFilterOptions',
+    params,
+  })
+}
+
 // ========== 模型求解模块 ==========
 
 /**
  * 创建并开始求解任务
  * POST /solve/start
- * 后端根据 importId 读取任务数据，创建求解任务后异步调用算法服务
- * @param {Object} data { importId, scheduleMonth, productionRules, personnelCapacity, solverTimeLimitMinutes }
+ * 后端根据 taskId 读取任务数据，创建求解任务后异步调用算法服务
+ * @param {Object} data { taskId, department, scheduleMonth, unmatchedItemPolicy, productionRules, personnelCapacity, solverTimeLimitMinutes }
  * @returns {Promise} data: { solveTaskId, importId, solveStatus, progress, createTime }
  */
 export function startSolveTask(data) {

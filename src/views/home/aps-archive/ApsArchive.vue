@@ -74,7 +74,6 @@
           @save-table="onSaveTable"
           @edit-row="onEditRow"
           @delete-row="onDeleteRow"
-          @load-more="loadMoreRows"
           @trigger-file-input="triggerFileInput"
         />
       </div>
@@ -105,7 +104,6 @@ const {
   planList,
   activePlanId,
   planState,
-  filteredTableData,
   displayTableData,
   listLoading,
   onAddPlan,
@@ -128,8 +126,6 @@ const {
   onAddRow,
   onExportTable,
   onSaveTable,
-  // 分片渲染（滚动加载更多）
-  loadMoreRows,
   // 行操作
   onEditRow,
   onDeleteRow,
