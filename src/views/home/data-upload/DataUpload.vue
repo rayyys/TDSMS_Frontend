@@ -20,6 +20,7 @@
             class="aps-archive-select"
             placeholder="请选择"
             clearable
+            :loading="apsArchiveLoading"
             @change="onApsArchiveChange"
           >
             <el-option
@@ -214,6 +215,7 @@ const {
   importMode,
   apsArchiveId,
   apsArchiveOptions,
+  apsArchiveLoading,
   APS_ARCHIVE_ADD,
   onApsArchiveChange,
   uploadDragOver,

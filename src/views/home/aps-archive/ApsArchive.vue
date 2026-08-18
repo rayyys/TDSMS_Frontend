@@ -41,7 +41,7 @@
       </div>
 
       <!-- 右侧主体区：无方案 > 未上传 > 已上传 三级状态 -->
-      <div class="archive-main">
+      <div v-loading="listLoading" class="archive-main">
         <!-- 无方案状态：提示先创建方案 -->
         <ApsNoPlanEmpty v-if="!planList.length" @add-plan="onAddPlan" />
 
@@ -106,6 +106,7 @@ const {
   activePlanId,
   planState,
   filteredTableData,
+  listLoading,
   onAddPlan,
   onSelectPlan,
   onDeletePlan,

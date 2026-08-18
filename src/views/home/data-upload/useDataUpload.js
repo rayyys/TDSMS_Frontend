@@ -1,8 +1,10 @@
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { Search, RefreshRight, Loading } from '@element-plus/icons-vue'
 import { useSchedulingStore } from '@/stores/scheduling'
+import { useApsStore } from '@/stores/aps'
 import { useStepNav } from '../useStepNav'
 import { isExcelFile } from '@/utils/excelParse'
 import {
@@ -11,7 +13,6 @@ import {
   getTaskHistory,
   historyImportTask,
   deleteTaskHistory,
-  getApsArchiveList,
 } from '@/api/scheduling'
 
 export function useDataUpload() {
@@ -31,39 +32,14 @@ export function useDataUpload() {
   // ==================== 导入模式 ====================
   const importMode = ref('manual')
 
-  // APS 排产信息档案选择：选项由后端接口动态获取
+  // APS 排产信息档案选择：选项由全局 aps store 提供（登录后统一拉取，各页面复用，避免重复请求）
   const router = useRouter()
   const apsArchiveId = ref('')
-  const apsArchiveOptions = ref([])
+  const apsStore = useApsStore()
+  // store 的已保存方案下拉选项与列表加载态（storeToRefs 保持响应式引用）
+  const { planOptions: apsArchiveOptions, listLoading: apsArchiveLoading } = storeToRefs(apsStore)
   // 「新增方案」特殊选项值，用于触发跳转而非真正选中
   const APS_ARCHIVE_ADD = '__add__'
-
-  // 从后端拉取 APS 排产信息档案方案列表
-  async function fetchApsArchiveOptions() {
-    try {
-      const res = await getApsArchiveList()
-      const result = res?.data
-      if (result?.success === false) {
-        ElMessage.error(result.message || '获取APS档案列表失败')
-        return
-      }
-      // 兼容多种返回结构：data 为数组 / data 为 { records } 分页结构 / 字段缺失兜底空数组
-      // 后端未就绪或返回异常时避免 list.map 崩溃
-      const raw = result?.data ?? result
-      const list = Array.isArray(raw) ? raw : Array.isArray(raw?.records) ? raw.records : []
-      apsArchiveOptions.value = list.map((item) => ({
-        label: item.archiveName,
-        value: item.archiveId,
-      }))
-    } catch (err) {
-      const status = err?.response?.status
-      if (status === 401) {
-        // 401 已在响应拦截器中统一处理（提示 + 跳转）
-      } else {
-        ElMessage.error(err?.response?.data?.message || err.message || '获取APS档案列表失败')
-      }
-    }
-  }
 
   // 下拉框变化：选择「新增方案」时跳转到 APS 排产信息档案管理页面
   function onApsArchiveChange(val) {
@@ -74,11 +50,33 @@ export function useDataUpload() {
     }
   }
 
-  // 页面加载时拉取档案方案，保证数据实时性
+  // 页面加载时确保方案列表已拉取（登录后已预拉取，此处复用 store 缓存，不会重复请求）
   onMounted(() => {
-    fetchApsArchiveOptions()
+    apsStore.ensurePlanList()
     autoImportTemplate()
   })
+
+  // 方案在档案页被删除后，若当前下拉框仍选中失效方案，则联动清空，避免携带不存在的 archiveId 提交
+  watch(
+    () => apsArchiveOptions.value,
+    (options) => {
+      const selected = apsArchiveId.value
+      if (!selected || options.some((o) => o.value === selected)) return
+      // 草稿被保存为档案后 id 会替换（plan- 前缀 → 真实 archiveId），此时静默清空即可；
+      // 已保存方案从下拉框中消失则说明已被删除，给出提示
+      const wasDraft = selected.startsWith('plan-')
+      apsArchiveId.value = ''
+      if (!wasDraft) {
+        ElMessage.warning('当前选择的 APS 方案已被删除，请重新选择')
+      }
+    },
+  )
+
+  // 判断当前选中的方案是否为本地草稿（未保存档案没有真实 archiveId，不能作为档案提交）
+  function isSelectedPlanDraft() {
+    const opt = apsArchiveOptions.value.find((o) => o.value === apsArchiveId.value)
+    return !!opt && !opt.isSaved
+  }
 
   // mock 模式下进入页面自动导入默认模板文件（docs/药业车间分解编排计划表模板.xlsx），
   // 便于无后端时直接预览上传与任务数据页内容；非 mock 环境不触发。
@@ -118,6 +116,11 @@ export function useDataUpload() {
     }
     if (!hasApsArchive) {
       ElMessage.warning('当前未选择 APS 排产信息档案方案，请选择后继续。')
+      return
+    }
+    // 草稿方案未保存为档案，无真实 archiveId，需先到档案页保存后才能继续
+    if (isSelectedPlanDraft()) {
+      ElMessage.warning('所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再继续。')
       return
     }
     if (!hasUploadedFile) {
@@ -177,6 +180,11 @@ export function useDataUpload() {
     // 强制选择机制：上传文件前必须先选择一个 APS 排产信息档案方案
     if (!apsArchiveId.value) {
       ElMessage.warning('请先选择 APS 排产信息档案方案')
+      return
+    }
+    // 草稿方案未保存为档案，无真实 archiveId，拦截上传
+    if (isSelectedPlanDraft()) {
+      ElMessage.warning('所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再上传计划文件')
       return
     }
 
@@ -426,6 +434,7 @@ export function useDataUpload() {
     // APS 排产信息档案
     apsArchiveId,
     apsArchiveOptions,
+    apsArchiveLoading,
     APS_ARCHIVE_ADD,
     onApsArchiveChange,
     // upload

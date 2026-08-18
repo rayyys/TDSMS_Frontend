@@ -1,12 +1,17 @@
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
+import { useApsStore } from '@/stores/aps'
+import { loadApsDraftStates, saveApsDraftStates } from '@/utils/apsStorage'
 import {
   createApsArchive,
   createApsArchiveItem,
   batchDeleteApsArchiveItems,
+  deleteApsArchive,
   exportApsArchive,
   downloadApsTemplate,
+  getApsArchiveItems,
 } from '@/api/scheduling'
 
 /**
@@ -31,6 +36,8 @@ function createPlanState() {
     editingRow: null,
     // 原始上传文件对象（保存时上传给后端解析）
     rawFile: null,
+    // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
+    detailLoaded: false,
   }
 }
 
@@ -88,15 +95,51 @@ function mapRowToItemPayload(row, archiveId) {
   }
 }
 
+// 后端明细记录字段 → 表格行字段 的映射（与 mapRowToItemPayload 互为逆操作）
+const ITEM_TO_ROW_KEYS = {
+  productName: 'product',
+  packageSpecification: 'packageSpec',
+  mixingLine: 'dispensingLine',
+  mixingBatchQuantity: 'batchQty',
+  mixingShiftOutput: 'shiftOutput',
+  mixingWorkerCount: 'dispensingStaff',
+  tabletPress: 'pressMachine',
+  tabletingShiftOutput: 'pressOutput',
+  tabletingWorkerCount: 'pressStaff',
+  coatingMachine: 'coatingMachine',
+  coatingShiftOutput: 'coatingOutput',
+  coatingWorkerCount: 'coatingStaff',
+  dividingEquipment: 'fillingEquip',
+  dividingShiftOutput: 'fillingOutput',
+  dividingWorkerCount: 'fillingStaff',
+  packagingEquipment: 'packingEquip',
+  packagingShiftOutput: 'packingOutput',
+  manualPackagingOutput: 'manualOutput',
+  packagingWorkerCount: 'packingStaff',
+  productionCycleDays: 'cycleDays',
+  centralizedProcurement: 'isProcurement',
+  annualSales: 'annualSales',
+}
+
+// 将后端明细记录转为表格行数据：空值统一转为空字符串，避免表格显示 null/undefined
+function mapItemToRow(item) {
+  const row = {}
+  for (const [fromKey, toKey] of Object.entries(ITEM_TO_ROW_KEYS)) {
+    const value = item?.[fromKey]
+    row[toKey] = value === null || value === undefined ? '' : String(value)
+  }
+  return row
+}
+
 /**
  * APS 排产信息档案 - 页面逻辑组合式函数
  * 支持多方案隔离：切换方案时自动保存/恢复各自的上传状态与表格数据
  */
 export function useApsArchive() {
   // ================== 方案管理 ==================
-  // 方案列表：首次进入为空，点击"新增方案"后追加
-  const planList = ref([])
-  const activePlanId = ref(null)
+  // 方案列表与当前选中方案由全局 store 管理，并持久化到 localStorage（刷新后不丢失）
+  const apsStore = useApsStore()
+  const { planList, activePlanId } = storeToRefs(apsStore)
 
   // 每个方案对应一个独立的状态对象（reactive），切换方案时互不干扰
   const planStateMap = ref({})
@@ -144,41 +187,168 @@ export function useApsArchive() {
     return String(n)
   }
 
-  // 点击"新增方案"：追加方案并设为激活
+  // 点击"新增方案"：通过 store 创建本地草稿并持久化，刷新后方案不丢失
   function onAddPlan() {
-    const newPlan = {
-      id: `plan-${Date.now()}`,
-      name: `方案${toChineseNum(nextPlanNo())}`,
-    }
-    planList.value.push(newPlan)
-    activePlanId.value = newPlan.id
+    const newPlan = apsStore.addLocalPlan(`方案${toChineseNum(nextPlanNo())}`)
     ElMessage.success(`${newPlan.name}已创建`)
   }
 
-  // 点击方案项：切换激活，状态由 planState 自动切换，无需手动重置
+  // 点击方案项：切换激活（同步持久化选中态），已保存方案按需拉取明细
   function onSelectPlan(planId) {
     if (planId === activePlanId.value) return
-    activePlanId.value = planId
+    apsStore.selectPlan(planId)
+    // 切换到已保存但明细尚未加载过的方案时，拉取其明细数据
+    loadPlanDetail(getActivePlan())
   }
 
-  // 删除方案：同时清理该方案的状态缓存
+  // 删除方案：已保存方案先删除后端数据（避免刷新后重新出现），再清理本地缓存
   async function onDeletePlan(plan) {
+    let confirmed = false
     try {
       await ElMessageBox.confirm(`确定删除「${plan.name}」吗？`, '删除方案', {
         type: 'warning',
         confirmButtonText: '删除',
         cancelButtonText: '取消',
       })
-      planList.value = planList.value.filter((p) => p.id !== plan.id)
-      delete planStateMap.value[plan.id]
-      if (activePlanId.value === plan.id) {
-        activePlanId.value = planList.value[0]?.id ?? null
-      }
-      ElMessage.success('已删除')
+      confirmed = true
     } catch {
       /* 用户取消 */
     }
+    if (!confirmed) return
+
+    // 已保存方案需同步删除后端数据，删除失败则中断，避免本地/后端不一致
+    if (isSavedArchive(plan)) {
+      try {
+        const res = await deleteApsArchive({ archiveId: plan.id })
+        const result = res?.data
+        if (result?.success === false) {
+          ElMessage.error(result.message || '删除方案失败')
+          return
+        }
+      } catch (err) {
+        const status = err?.response?.status
+        if (status !== 401) {
+          // 401 已在响应拦截器中统一处理（提示 + 跳转）
+          ElMessage.error(err?.response?.data?.message || err.message || '删除方案失败，请稍后重试')
+        }
+        return
+      }
+    }
+
+    apsStore.removePlan(plan.id)
+    delete planStateMap.value[plan.id]
+    ElMessage.success('已删除')
   }
+
+  // ================== 初始化数据加载 ==================
+  // 页面刷新时加载方案列表的 loading 态
+  const listLoading = ref(false)
+
+  // 加载指定方案的明细数据（GET /aps/infoQuery）
+  // 已加载过的方案不重复请求，保留会话内的本地编辑
+  async function loadPlanDetail(plan) {
+    if (!isSavedArchive(plan)) return
+    const state = ensurePlanState(plan.id)
+    if (state.detailLoaded) return
+    state.tableLoading = true
+    try {
+      const res = await getApsArchiveItems({ archiveId: Number(plan.id) })
+      const result = res?.data
+      if (result?.success === false) {
+        ElMessage.error(result.message || '获取方案明细失败')
+        return
+      }
+      // 兼容 data 为 { records } 分页结构 / 直接为数组两种返回
+      const raw = result?.data ?? result
+      const records = Array.isArray(raw?.records) ? raw.records : Array.isArray(raw) ? raw : []
+      state.tableData = records.map(mapItemToRow)
+      state.uploadedFileName = `${plan.name}.xlsx`
+      state.hasImported = true
+      state.selectedRows = []
+      state.editingRow = null
+      state.newRowIndex = null
+      state.detailLoaded = true
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '获取方案明细失败')
+      }
+    } finally {
+      state.tableLoading = false
+    }
+  }
+
+  // 页面刷新时：从 store 拉取方案列表（含已持久化的本地草稿，刷新后不丢失），并对当前选中的方案加载明细
+  async function loadPlanList() {
+    listLoading.value = true
+    try {
+      await apsStore.ensurePlanList()
+      // 对应当前选中的方案加载其明细
+      const activePlan = getActivePlan()
+      if (activePlan) {
+        await loadPlanDetail(activePlan)
+      }
+    } finally {
+      listLoading.value = false
+    }
+  }
+
+  // 页面每次刷新：先拉取方案列表，再对当前选中的方案加载明细
+  onMounted(() => {
+    loadPlanList()
+    // 恢复本地草稿已上传的表格数据（刷新后不丢失）
+    restoreDraftStates()
+  })
+
+  // ================== 本地草稿数据持久化（刷新后的双保障） ==================
+  // 已保存方案：刷新时由 loadPlanDetail 走 /aps/infoQuery 接口重新拉取；
+  // 本地草稿（未保存）：无 archiveId 无法走接口，故将表格数据持久化到 localStorage，
+  // 刷新后 restoreDraftStates 恢复，保证已上传的 Excel 数据不丢失。
+
+  // 刷新后恢复所有草稿方案的表格数据
+  function restoreDraftStates() {
+    const drafts = loadApsDraftStates()
+    if (!drafts) return
+    for (const plan of planList.value) {
+      if (plan.isSaved) continue
+      const saved = drafts[plan.id]
+      if (!saved) continue
+      const state = ensurePlanState(plan.id)
+      if (Array.isArray(saved.tableData)) {
+        state.tableData = saved.tableData
+      }
+      state.uploadedFileName = saved.uploadedFileName || ''
+      state.hasImported = !!saved.hasImported
+    }
+  }
+
+  // 收集当前草稿方案的表格数据，写入 localStorage
+  function persistDraftStates() {
+    const drafts = {}
+    for (const [planId, state] of Object.entries(planStateMap.value)) {
+      // 仅持久化本地草稿（plan- 前缀），已保存方案由后端接口保证
+      if (!planId.startsWith('plan-')) continue
+      drafts[planId] = {
+        tableData: state.tableData,
+        uploadedFileName: state.uploadedFileName,
+        hasImported: state.hasImported,
+      }
+    }
+    saveApsDraftStates(drafts)
+  }
+
+  // 监听草稿状态变化，防抖后持久化（避免编辑单元格时高频写入）
+  let persistTimer = null
+  watch(
+    () => planStateMap.value,
+    () => {
+      clearTimeout(persistTimer)
+      persistTimer = setTimeout(persistDraftStates, 300)
+    },
+    { deep: true },
+  )
 
   // ================== 表格样式 ==================
   // 表头样式：固定浅灰背景，加粗居中
@@ -494,10 +664,16 @@ export function useApsArchive() {
       }
 
       const data = result?.data || {}
-      // 保存成功后，用后端返回的 archiveId 更新方案 ID
+      // 保存成功后：将本地草稿升级为已保存方案，并迁移表格状态，避免保存后表格被清空
       if (data.archiveId && activePlan) {
-        activePlan.id = String(data.archiveId)
-        activePlanId.value = activePlan.id
+        const oldId = activePlan.id
+        const newId = String(data.archiveId)
+        apsStore.markPlanSaved(oldId, newId)
+        // 迁移表格状态到新 id：保证保存后仍显示当前数据，刷新后也能正常展示
+        if (planStateMap.value[oldId]) {
+          planStateMap.value[newId] = planStateMap.value[oldId]
+          delete planStateMap.value[oldId]
+        }
       }
       state.selectedRows = []
       state.newRowIndex = null
@@ -604,6 +780,7 @@ export function useApsArchive() {
     activePlanId,
     planState,
     filteredTableData,
+    listLoading,
     onAddPlan,
     onSelectPlan,
     onDeletePlan,

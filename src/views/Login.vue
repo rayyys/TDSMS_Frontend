@@ -30,10 +30,12 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useApsStore } from '@/stores/aps'
 import { login as loginApi } from '@/api/user'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const apsStore = useApsStore()
 
 const loginForm = ref({ username: '', password: '' })
 const loginLoading = ref(false)
@@ -75,6 +77,8 @@ async function login() {
     }
 
     authStore.setUser({ token, user: userInfo })
+    // 登录成功后预拉取 APS 方案列表（store 内并发去重，业务页面复用缓存，避免重复请求）
+    apsStore.ensurePlanList()
     router.push('/upload')
     ElMessage.success(
       result.message || `登录成功，欢迎 ${userInfo.realName || userInfo.username || '用户'}`,

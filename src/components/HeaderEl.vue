@@ -72,6 +72,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowDown, SwitchButton, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSchedulingStore } from '@/stores/scheduling'
+import { useApsStore } from '@/stores/aps'
 import { logout as logoutApi } from '@/api/user'
 import { isSkipAuthEnabled, setSkipAuthEnabled } from '@/utils/authUser'
 
@@ -79,6 +80,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const schedulingStore = useSchedulingStore()
+const apsStore = useApsStore()
 
 const showMenu = ref(false)
 
@@ -142,6 +144,8 @@ async function handleLogout() {
     ElMessage.error(message)
   } finally {
     schedulingStore.resetAll()
+    // 清空 APS 方案状态与本地缓存，避免切换账号时串用上一账号的方案数据
+    apsStore.resetState()
     authStore.clearUser()
     router.replace('/login')
   }
