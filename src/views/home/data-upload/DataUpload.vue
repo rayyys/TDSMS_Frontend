@@ -201,8 +201,8 @@ import { useDataUpload } from './useDataUpload'
 
 // 历史记录弹窗表格列配置，供 AdaptiveTableContainer 自适应计算列宽
 const historyTableColumns = computed(() => [
-  { key: 'taskNo', label: '任务编号', width: 140 },
-  { key: 'apsName', label: '方案名称', width: 200 },
+  { key: 'taskNo', label: '任务编号', width: 50 },
+  { key: 'apsName', label: '方案名称', width: 50 },
   { key: 'fileName', label: '文件名', width: 200 },
   { key: 'taskRemark', label: '备注', width: 120 },
   { key: 'createdBy', label: '上传人', width: 100 },

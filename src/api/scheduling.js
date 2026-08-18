@@ -201,14 +201,44 @@ export function importTask(formData) {
 /**
  * 查询计划明细（已解析并保存到数据库的药业车间分解编排计划明细）
  * GET /task/detailQuery
- * @param {Object} params { importId, page, pageSize, keyword }
- * @returns {Promise}
+ * 筛选：同一数组内多个值为 OR，不同条件之间为 AND；三个筛选条件均可传空数组表示不限制
+ * @param {Object} params {
+ *   taskId,                        // 任务 ID（上传与历史导入两种来源）
+ *   page, pageSize,                // 分页
+ *   keyword,                       // 关键词搜索（可选）
+ *   departmentNames: string[],     // 部门多选（可选）
+ *   monthlyProductionPlans: [],    // 月度生产计划多选（可选）
+ *   inventoryNames: string[],      // 存货名称多选（可选）
+ * }
+ * @returns {Promise} data: { total, page, pageSize, records }
  */
 export function getTaskDetail(params) {
   return request({
     method: 'get',
     url: '/task/detailQuery',
     params,
+    // axios 默认把数组序列化为 departmentNames[]=x 的方括号形式，
+    // Java 后端 @RequestParam List<String> 匹配不到带 [] 的 key，会导致筛选参数失效、后端返回全量数据。
+    // 这里自定义序列化：数组展开为重复参数（departmentNames=a&departmentNames=b），
+    // 与接口文档中的参数名（不带 []）保持一致；空数组不拼任何参数，表示该条件不限制。
+    paramsSerializer: {
+      serialize: (params) => {
+        const qs = []
+        for (const [key, value] of Object.entries(params)) {
+          if (value === undefined || value === null || value === '') continue
+          if (Array.isArray(value)) {
+            value.forEach((v) => {
+              if (v !== undefined && v !== null && v !== '') {
+                qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`)
+              }
+            })
+          } else {
+            qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          }
+        }
+        return qs.join('&')
+      },
+    },
   })
 }
 

@@ -160,45 +160,12 @@ export function useTaskData() {
     { immediate: true },
   )
 
-  // —— 过滤后的数据（前端二次过滤，服务端按基础参数返回数据后本地按筛选 / 关键字过滤） ——
-  const filteredRows = computed(() => {
-    let rows = rawRows.value
-    // 部门多选：选中的部门作为集合，命中任一部门即保留
-    if (filterDepartment.value.length > 0) {
-      const depts = new Set(filterDepartment.value)
-      rows = rows.filter((r) => depts.has(r.department))
-    }
-    // 生产计划多选：选中的计划作为集合，命中任一计划即保留
-    if (filterProductionPlan.value.length > 0) {
-      const plans = new Set(filterProductionPlan.value)
-      rows = rows.filter((r) => {
-        if (!r.monthlyPlan) return false
-        // 后端返回的月度计划格式可能是 "2026-07" 或 "2026年07月"，做兼容判断
-        const raw = String(r.monthlyPlan)
-        const normalized = raw.replace(/年|月/g, '-').replace(/-$/, '').replace(/^(\d{4})-(\d{1,2})$/, '$1-0$2')
-        return [...plans].some((p) => raw.includes(p) || normalized.includes(p))
-      })
-    }
-    // 存货名称多选：命中任一名称即保留
-    if (filterInventoryName.value.length > 0) {
-      const names = new Set(filterInventoryName.value)
-      rows = rows.filter((r) => names.has(r.materialName))
-    }
-    // 关键词搜索：对整行所有字段做模糊匹配（不区分大小写）
-    if (inputKeyword.value) {
-      const kw = inputKeyword.value.trim().toLowerCase()
-      rows = rows.filter((r) =>
-        Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(kw))
-      )
-    }
-    return rows
-  })
-
-  // 当前页数据：服务端已按 page/pageSize 分页返回，rawRows 即为当前页；
-  // 前端再按部门 / 生产计划 / 存货名称做二次筛选。始终保持 pageSize 行，
-  // 不足时用占位行填充空白行，确保表格高度恒定
+  // —— 展示数据 ——
+  // 筛选 / 搜索均由后端 /task/detailQuery 处理（点击「筛选」或「搜索」才发起请求），
+  // 前端只负责展示服务端按 page/pageSize 返回的当前页数据（rawRows）。
+  // 始终保持 pageSize 行，不足时用占位行填充空白行，确保表格高度恒定
   const pagedRows = computed(() => {
-    const rows = filteredRows.value
+    const rows = rawRows.value
     const fillCount = pageSize.value - rows.length
     if (fillCount > 0) {
       // 占位行：_isPlaceholder 标记用于样式区分（隐藏文字但保留行高）
@@ -233,12 +200,6 @@ export function useTaskData() {
     }
   })
 
-  // 筛选条件变化时重置分页并重新拉取
-  watch([filterDepartment, filterProductionPlan, filterInventoryName], () => {
-    currentPage.value = 1
-    fetchData()
-  })
-
   // 每页条数变化时重置分页并重新拉取
   watch(pageSize, () => {
     currentPage.value = 1
@@ -271,6 +232,21 @@ export function useTaskData() {
     fetchData()
   }
 
+  // 记录上一次三个筛选是否全部为空，用于「叉掉全部筛选条件时自动触发重置」
+  let prevFilterAllEmpty = true
+  watch([filterDepartment, filterProductionPlan, filterInventoryName], () => {
+    const allEmpty =
+      filterDepartment.value.length === 0 &&
+      filterProductionPlan.value.length === 0 &&
+      filterInventoryName.value.length === 0
+    // 仅当筛选条件从「有值」变为「全部清空」时，自动触发一次重置（等价于点击「重置」按钮）
+    // prevFilterAllEmpty 标志避免 handleReset 内部再次置空触发递归
+    if (!prevFilterAllEmpty && allEmpty) {
+      handleReset()
+    }
+    prevFilterAllEmpty = allEmpty
+  })
+
   /**
    * 页面跳转：根据输入框页码跳转到指定页，越界时自动收敛到首尾页
    */
@@ -288,16 +264,17 @@ export function useTaskData() {
 
   /**
    * 加载数据（调用后端 /task/detailQuery 接口）
-   * 服务端按 importId 分页返回已解析保存的计划明细，支持关键词搜索；
-   * 前端在返回的当前页数据上再按部门 / 生产计划 / 存货名称做二次筛选。
+   * 服务端按 taskId 分页返回已解析保存的计划明细，并将部门 / 生产计划 / 存货名称筛选、
+   * 关键词搜索一并交给后端处理（不同筛选条件为 AND、同组内为 OR，均未选时传空数组）。
    * 返回在途请求的 Promise，调用方可通过 await 等待数据加载完成。
    */
   async function fetchData() {
     // 存在在途请求时直接复用，避免筛选 / 翻页等联动触发重复请求
     if (pendingFetch) return pendingFetch
     // 未获取到任务 ID（尚未上传或历史导入），清空数据并提示用户先上传
-    const importId = schedulingStore.taskInfo?.importId
-    if (!importId) {
+    // taskId 兼容上传（importId）与历史导入两种来源
+    const taskId = schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId
+    if (!taskId) {
       rawRows.value = []
       totalRows.value = 0
       return
@@ -308,10 +285,14 @@ export function useTaskData() {
     pendingFetch = (async () => {
       try {
         const res = await getTaskDetail({
-          importId,
+          taskId,
           page: currentPage.value,
           pageSize: pageSize.value,
           keyword: inputKeyword.value || undefined,
+          // 三个筛选条件均非必填，未选时传空数组表示不限制
+          departmentNames: filterDepartment.value,
+          monthlyProductionPlans: filterProductionPlan.value,
+          inventoryNames: filterInventoryName.value,
         })
         const result = res?.data
         // 兼容两种返回结构：{ data: { records, total } } 或 { data: { data: { records, total } } }

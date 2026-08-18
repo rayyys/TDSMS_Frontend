@@ -24,14 +24,14 @@
         </div>
       </div>
       <!-- 开发调试开关：跳过权限校验，后端未就绪时可访问受限页面 -->
-      <div
+      <!-- <div
         v-if="authStore.isLoggedIn"
         class="dev-skip-auth"
         title="开发调试用：开启后可访问账号管理等受限页面"
       >
         <span class="dev-skip-auth-label">跳过权限</span>
         <el-switch v-model="skipAuth" size="small" @change="handleToggleSkip" />
-      </div>
+      </div> -->
       <div v-if="authStore.isLoggedIn" class="user-dropdown">
         <span class="user-info" @click="showMenu = !showMenu">
           <!-- 圆形头像（固定像素，不随 rem 缩放） -->
