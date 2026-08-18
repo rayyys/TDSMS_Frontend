@@ -195,8 +195,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const fileName = ref(saved?.fileName ?? '') // 上传文件名称（与 taskId 同级）
 
   // —— 模型构建新结构配置（生产规则 + 人员容量，仅用于页面展示与持久化） ——
-  // 1. 排产时间设置
-  const productionMonth = ref(saved?.productionMonth ?? getDefaultProductionMonth())
+  // 1. 排产时间设置（必填：不允许自动填充默认值，首次进入须手动选择）
+  const productionMonth = ref(saved?.productionMonth ?? null)
   // 2. 生产规则配置
   const continuousRunLimit = ref(saved?.continuousRunLimit ?? 5.5) // 连续运行上限（天）
   const cleaningTimeLarge = ref(saved?.cleaningTimeLarge ?? 0.5) // 大清场时长（天）
@@ -209,8 +209,8 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     saved?.morningShiftCapacity ?? { 配料: 3, 压片: 2, 包衣: 2, 包装: 4 },
   )
 
-  // 4. 部门选择（必填，默认 210车间）
-  const selectedDepartment = ref(saved?.selectedDepartment ?? '210车间')
+  // 4. 部门选择（必填：不允许自动填充默认值，首次进入须手动选择）
+  const selectedDepartment = ref(saved?.selectedDepartment ?? '')
 
   const solveTimeOptions = SOLVE_TIME_OPTIONS
 
@@ -310,12 +310,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     const d = new Date()
     const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0)
     return formatDateLastSecond(lastDay)
-  }
-  /** 获取排产月份默认值（当前年月，格式：YYYY-MM） */
-  function getDefaultProductionMonth() {
-    const d = new Date()
-    const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
   }
   /** 根据指定日期计算当月最后一天 23:59:59 */
   function calcMonthEnd(dateStr) {

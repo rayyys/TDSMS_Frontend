@@ -287,7 +287,7 @@ const MULTILINE_TITLES = {
 // 会随容器缩放同步变化，与表头内边距视觉保持一致
 const ROW_LAYOUT = {
   // 基准行高（容器宽 1680、scale=1 时的行高）
-  baseRowHeight: 32,
+  baseRowHeight: 40,
   // 行高随缩放增加的比例系数（scale 每增加 1，行高增加 8px）
   perScale: 8,
 }
@@ -659,7 +659,7 @@ function onClickImport() {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 16px 20px;
+    padding: 0 20px;
 
     .aps-toolbar-left,
     .aps-toolbar-right {

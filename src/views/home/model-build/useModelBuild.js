@@ -169,11 +169,23 @@ export function useModelBuild() {
     schedulingStore.priority = 0
   }
 
+  // 校验部门选择与排产月份初始状态必须为空：
+  // 若有持久化残留等非空值，强制置空，确保用户必须手动选择、不自动填充任何默认值
+  function ensureRequiredSelectsEmpty() {
+    if (schedulingStore.selectedDepartment || schedulingStore.productionMonth) {
+      schedulingStore.selectedDepartment = ''
+      schedulingStore.productionMonth = null
+      console.warn('[model-build] 部门/排产月份初始值校验未通过，已强制置空')
+    }
+  }
+
   // 进入模型构建页时自动重置排产时间默认值
   // 仅 idle（首次进入）和 done（已完成）时重置；stopped 保留用户设置以便二次修改
   onMounted(() => {
     if (schedulingStore.solveStatus === 'idle' || schedulingStore.solveStatus === 'done') {
       schedulingStore.resetScheduleDefaults()
+      // 页面加载后立即校验：部门与排产月份初始状态必须为空
+      ensureRequiredSelectsEmpty()
     }
   })
 
