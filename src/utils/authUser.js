@@ -3,7 +3,8 @@ export function isAuthTestUser(user) {
 }
 
 export function isAuthAdmin(user) {
-  return user?.isAdmin === 1
+  // 后端接口变动：以登录返回体 userInfo 中的 role 字段判断管理员（role === 'admin'）
+  return user?.role === 'admin'
 }
 
 // —— 开发调试开关：跳过管理员权限校验 ——

@@ -23,6 +23,29 @@ const TABLE_COLUMNS = [
   { key: 'submitTotal', label: '提报合计', width: 140 },
 ]
 
+// 后端接口字段 → 前端表格字段 映射
+// 后端明细接口返回的字段名与前端列定义不一致（如 departmentName / inventoryName / u8CurrentStock 等），
+// 在数据入口统一转换为前端约定的字段名，保证表格、筛选、下一步同步 store 共用同一套键
+const ROW_FIELD_MAP = {
+  departmentName: 'department',
+  inventoryName: 'materialName',
+  u8CurrentStock: 'u8Stock',
+  monthlyProductionPlan: 'monthlyPlan',
+  submittedTotal: 'submitTotal',
+}
+
+// 将后端返回的行数据映射为前端表格字段结构（未在映射中的字段原样透传，便于后续扩展）
+function mapRow(row) {
+  const mapped = {}
+  for (const [backendKey, frontendKey] of Object.entries(ROW_FIELD_MAP)) {
+    if (backendKey in row) mapped[frontendKey] = row[backendKey]
+  }
+  for (const key of Object.keys(row)) {
+    if (!(key in ROW_FIELD_MAP)) mapped[key] = row[key]
+  }
+  return mapped
+}
+
 export function useTaskData() {
   const schedulingStore = useSchedulingStore()
 
@@ -242,7 +265,8 @@ export function useTaskData() {
         // 兼容两种返回结构：{ data: { records, total } } 或 { data: { data: { records, total } } }
         const payload = result?.data ?? result
         const rows = payload?.records ?? []
-        rawRows.value = Array.isArray(rows) ? rows : []
+        // 后端字段名与前端列 key 不一致，在此统一映射（materialCode / specification 保持一致）
+        rawRows.value = (Array.isArray(rows) ? rows : []).map(mapRow)
         totalRows.value = payload?.total ?? rawRows.value.length
         // 同步数据到 store，使「任务数据」步骤满足下一步前置条件（hasParsedData = true）
         // 否则页面能显示数据，但 store 的 sheetDataMap 为空，下一步会被拦截

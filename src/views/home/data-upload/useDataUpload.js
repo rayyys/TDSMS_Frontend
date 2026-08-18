@@ -106,7 +106,7 @@ export function useDataUpload() {
   }
 
   // ==================== 下一步校验 ====================
-  function handleNext() {
+  async function handleNext() {
     const hasApsArchive = Boolean(apsArchiveId.value)
     const hasUploadedFile = Boolean(schedulingStore.uploadedFileName)
 
@@ -126,6 +126,12 @@ export function useDataUpload() {
     if (!hasUploadedFile) {
       ElMessage.warning('当前未上传药业车间分解编排计划，请上传文件后继续。')
       return
+    }
+
+    // 文件尚未提交到后端（无任务信息）时，先将文件连同已填写的备注一并上传，成功后再进入下一步
+    if (!schedulingStore.taskInfo?.importId) {
+      const submitted = await submitUpload()
+      if (!submitted) return
     }
 
     stepNavHandleNext()
@@ -171,7 +177,7 @@ export function useDataUpload() {
     input.click()
   }
 
-  async function processFile(file) {
+  function processFile(file) {
     if (!isExcelFile(file)) {
       ElMessage.error('仅支持 .xlsx / .xls 格式文件')
       return
@@ -188,6 +194,22 @@ export function useDataUpload() {
       return
     }
 
+    // 仅本地暂存文件（含原始 File 对象），真正调用上传接口延后到「下一步」时执行，
+    // 此时任务备注已填写完整，可随文件一并提交给后端
+    // 更换文件时清空旧任务信息，确保「下一步」会重新上传，避免沿用上一次的任务数据
+    schedulingStore.setUploadedFile(file)
+    schedulingStore.setTaskInfo(null)
+    ElMessage.success('文件已就绪，填写备注后点击「下一步」完成上传')
+  }
+
+  // 将暂存的文件连同任务备注提交到后端，成功后写入任务信息；失败返回 false 阻止进入下一步
+  async function submitUpload() {
+    const file = schedulingStore.uploadedFileRaw
+    if (!file) {
+      ElMessage.warning('文件上传信息已丢失，请重新选择文件后继续')
+      return false
+    }
+
     uploading.value = true
     try {
       const formData = new FormData()
@@ -200,16 +222,17 @@ export function useDataUpload() {
 
       if (result?.success === false) {
         ElMessage.error(result.message || '文件上传失败')
-        return
+        return false
       }
 
-      // 上传成功，才在页面中显示文件
-      const taskData = result?.data || result || {}
+      // 上传成功，才在页面中展示文件并写入任务信息
       schedulingStore.setUploadedFile(file)
+      const taskData = result?.data || result || {}
       if (taskData.importId) {
         schedulingStore.setTaskInfo(taskData)
       }
       ElMessage.success('文件上传成功')
+      return true
     } catch (err) {
       const status = err?.response?.status
       if (status === 400) {
@@ -219,6 +242,7 @@ export function useDataUpload() {
       } else {
         ElMessage.error(err?.response?.data?.message || err.message || '文件上传失败，请稍后重试')
       }
+      return false
     } finally {
       uploading.value = false
     }
@@ -276,6 +300,24 @@ export function useDataUpload() {
   const searchQuery = ref('')
   const historyTableData = ref([])
   const totalRecords = ref(0)
+
+  // 后端历史记录接口字段 → 前端历史表格字段 映射
+  // 返回体字段名与前端列 prop 不一致（如 originalFileName / remark 等），
+  // 在数据入口统一转换为前端约定的字段名；taskId 用作「任务编号」展示，同时保留原字段供删除/导入使用
+  const HISTORY_ROW_MAP = {
+    taskId: 'taskNo',
+    originalFileName: 'fileName',
+    remark: 'taskRemark',
+  }
+
+  // 将后端返回的历史记录行数据映射为前端表格字段结构（未在映射中的字段原样透传）
+  function mapHistoryRow(row) {
+    const mapped = { ...row }
+    for (const [backendKey, frontendKey] of Object.entries(HISTORY_ROW_MAP)) {
+      if (backendKey in row) mapped[frontendKey] = row[backendKey]
+    }
+    return mapped
+  }
 
   function getHistoryList() {
     // 已废弃，历史记录通过弹窗展示
@@ -350,7 +392,8 @@ export function useDataUpload() {
       }
       // 接口返回 { total, pageNum, pageSize, records }
       const data = result?.data || result || {}
-      historyDialogData.value = data.records || []
+      // 后端字段名与前端历史表格列 prop 不一致，在此统一映射（taskId 原样保留供删除/导入使用）
+      historyDialogData.value = (data.records || []).map(mapHistoryRow)
       historyTotal.value = data.total || 0
     } catch (err) {
       const status = err?.response?.status

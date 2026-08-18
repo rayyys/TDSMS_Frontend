@@ -1,0 +1,30 @@
+{
+    "success": true,
+    "code": 200,
+    "message": "查询成功",
+    "data": {
+        "total": 1,
+        "page": 1,
+        "pageSize": 10,
+        "records": [
+            {
+                "taskId": 4,
+                "importId": 4,
+                "sourceType": 1,
+                "sourceTaskId": null,
+                "originalFileName": "药业车间分解编排计划表模板.xlsx",
+                "fileId": 4,
+                "apsArchive": {
+                    "archiveId": 3,
+                    "archiveName": "方案一"
+                },
+                "remark": null,
+                "dataCount": 733,
+                "importStatus": 1,
+                "createdBy": 2,
+                "createTime": "2026-08-18 09:14:50",
+                "updateTime": "2026-08-18 09:14:50"
+            }
+        ]
+    }
+}

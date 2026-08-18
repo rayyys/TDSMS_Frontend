@@ -38,6 +38,10 @@ function createPlanState() {
     rawFile: null,
     // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
     detailLoaded: false,
+    // 大数据量时分片渲染：当前已渲染行数（滚动到底自动追加），避免一次性渲染全部行导致卡顿
+    renderCount: 200,
+    // 每次滚动到底追加的行数
+    renderStep: 200,
   }
 }
 
@@ -128,6 +132,8 @@ function mapItemToRow(item) {
     const value = item?.[fromKey]
     row[toKey] = value === null || value === undefined ? '' : String(value)
   }
+  // 保留后端明细主键 itemId，供「单条精确删除」接口使用
+  row.itemId = item?.itemId ?? null
   return row
 }
 
@@ -174,6 +180,38 @@ export function useApsArchive() {
       return product.includes(keyword) || packageSpec.includes(keyword)
     })
   })
+
+  // 表格实际渲染的数据：按片渲染，滚动接近底部时自动追加下一片（分片渲染，保持从上至下滚动体验）
+  const displayTableData = computed(() => {
+    const rows = filteredTableData.value
+    return rows.slice(0, planState.value.renderCount)
+  })
+
+  // 搜索条件变化后重置已渲染片数，避免停留在空白区域
+  watch(
+    () => planState.value.searchQuery,
+    () => {
+      planState.value.renderCount = planState.value.renderStep
+    },
+  )
+
+  // 删除数据导致总行数减少时，修正已渲染片数，避免超出实际行数
+  watch(
+    () => filteredTableData.value.length,
+    (len) => {
+      if (planState.value.renderCount > len) {
+        planState.value.renderCount = len
+      }
+    },
+  )
+
+  // 滚动加载更多：追加渲染下一片（幂等，达到总行数后不再增长）
+  function loadMoreRows() {
+    const state = planState.value
+    const total = filteredTableData.value.length
+    if (state.renderCount >= total) return
+    state.renderCount = Math.min(total, state.renderCount + state.renderStep)
+  }
 
   // 下一个方案的序号
   function nextPlanNo() {
@@ -509,15 +547,9 @@ export function useApsArchive() {
   }
 
   // ================== 工具栏操作 ==================
-  // 多选变化事件
-  function onSelectionChange(selection) {
-    planState.value.selectedRows = selection
-  }
-
-  // 取消选择
+  // 取消选择：清空选中集合，表格选择框的勾选态由选中集合派生、自动刷新
   function onCancelSelection() {
     planState.value.selectedRows = []
-    // 通知表格清空选中：由调用方通过 el-table ref 调用 clearSelection
   }
 
   // 批量删除：已保存的方案调用「按品种批量删除」接口，再同步本地表格
@@ -547,6 +579,9 @@ export function useApsArchive() {
       if (isSavedArchive(activePlan)) {
         const res = await batchDeleteApsArchiveItems({
           archiveId: activePlan.id,
+          // 批量删除：按品种软删除，传品种名列表；itemId 不使用传空
+          batchMode: true,
+          itemId: null,
           productNames,
         })
         const result = res?.data
@@ -584,6 +619,8 @@ export function useApsArchive() {
     // _isNewRow 标记新增行，保存时据此调用「新增 APS 明细」接口逐行入库
     const newRow = { _isNewRow: true }
     state.tableData.push(newRow)
+    // 新增行在数据末尾，先渲染至包含该行，保证新增行立即可见
+    state.renderCount = Math.max(state.renderCount, state.tableData.length)
     // 记录新增行下标，供保存时定位该行进行品种校验
     state.newRowIndex = state.tableData.length - 1
     // 新增行即刻进入可编辑状态（替换原可编辑行，保证仅一行）
@@ -755,7 +792,8 @@ export function useApsArchive() {
     planState.value.editingRow = row
   }
 
-  async function onDeleteRow(index) {
+  // 精确删除单条明细：已保存的方案调用「按 itemId 删除」接口，再同步本地表格
+  async function onDeleteRow(row) {
     try {
       await ElMessageBox.confirm('确定删除该条数据吗？', '删除确认', {
         type: 'warning',
@@ -763,11 +801,31 @@ export function useApsArchive() {
         cancelButtonText: '取消',
       })
       const state = planState.value
-      state.tableData.splice(index, 1)
+      const activePlan = getActivePlan()
+      // 已保存的方案同步删除后端数据；未保存的方案或新增未入库行仅本地删除
+      if (isSavedArchive(activePlan) && row.itemId) {
+        const res = await batchDeleteApsArchiveItems({
+          archiveId: activePlan.id,
+          // 精确删除：按 itemId 删除单条，productNames 不使用传空数组
+          batchMode: false,
+          itemId: row.itemId,
+          productNames: [],
+        })
+        const result = res?.data
+        if (result?.success === false) {
+          ElMessage.error(result.message || '删除失败')
+          return
+        }
+      }
+      // 本地删除该行（按行对象定位，避免搜索过滤后下标错位）
+      const idx = state.tableData.indexOf(row)
+      if (idx >= 0) state.tableData.splice(idx, 1)
       // 若被删行正是可编辑行，则清空可编辑状态
       if (state.editingRow && !state.tableData.includes(state.editingRow)) {
         state.editingRow = null
       }
+      // 同步从选中集合中移除该行
+      state.selectedRows = state.selectedRows.filter((r) => r !== row)
       ElMessage.success('已删除')
     } catch {
       /* 用户取消 */
@@ -780,6 +838,7 @@ export function useApsArchive() {
     activePlanId,
     planState,
     filteredTableData,
+    displayTableData,
     listLoading,
     onAddPlan,
     onSelectPlan,
@@ -795,13 +854,14 @@ export function useApsArchive() {
     onFileDrop,
     onDownloadTemplate,
     // 工具栏操作
-    onSelectionChange,
     onCancelSelection,
     onBatchDelete,
     onResetSearch,
     onAddRow,
     onExportTable,
     onSaveTable,
+    // 分片渲染（滚动加载更多）
+    loadMoreRows,
     // 行操作
     onEditRow,
     onDeleteRow,

@@ -92,9 +92,12 @@ export function createApsArchiveItem(data) {
 }
 
 /**
- * 按品种批量删除 APS 明细（软删除，同一品种下所有未删除的包装规格与设备明细一并删除）
+ * 删除 APS 明细（支持「按品种批量删除」与「单条精确删除」两种模式，软删除）
  * POST /aps/itemDelete
- * @param {Object} data { archiveId, productNames: string[] }
+ * - batchMode=true 时按品种软删除：productNames 传待删品种名列表，同一品种下所有未删除的
+ *   包装规格与设备明细一并删除；itemId 不使用传空（null）
+ * - batchMode=false 时精确删除单条：itemId 传明细主键；productNames 不使用传空（[]）
+ * @param {Object} data { archiveId, batchMode, itemId, productNames }
  * @returns {Promise} data: { deletedProductCount, deletedItemCount, productNames }
  */
 export function batchDeleteApsArchiveItems(data) {

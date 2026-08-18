@@ -72,15 +72,28 @@
             :fit="false"
             :header-cell-style="(col) => ({ ...headerStyle, ...headerCellStyle(col) })"
             :cell-style="(col) => ({ ...bodyStyle, ...cellStyle(col) })"
-            @selection-change="onSelectionChange"
           >
-            <!-- 多选列 -->
+            <!-- 区块选择列：点击行勾选框时，自动选中该品种前后连续的整块数据行（勾选态由选中集合派生） -->
             <el-table-column
-              type="selection"
               :width="getColWidth(tableColumns[0])"
               align="center"
               fixed="left"
-            />
+              class-name="aps-selection-col"
+            >
+              <template #header>
+                <el-checkbox
+                  :model-value="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  @click="onToggleAll"
+                />
+              </template>
+              <template #default="scope">
+                <el-checkbox
+                  :model-value="isRowSelected(scope.row)"
+                  @click="onToggleBlock(scope.row)"
+                />
+              </template>
+            </el-table-column>
 
         <!-- 品种 -->
         <el-table-column
@@ -532,7 +545,7 @@
                 link
                 class="row-action-btn row-action-del"
                 :icon="Delete"
-                @click="onDeleteRow(scope.$index)"
+                @click="onDeleteRow(scope.row)"
               />
             </div>
           </template>
@@ -563,7 +576,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { Plus, Upload, Edit, Delete, Search, Check } from '@element-plus/icons-vue'
 import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import ApsOverflowText from './ApsOverflowText.vue'
@@ -588,7 +601,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'selection-change',
   'cancel-selection',
   'batch-delete',
   'reset-search',
@@ -597,6 +609,7 @@ const emit = defineEmits([
   'save-table',
   'edit-row',
   'delete-row',
+  'load-more',
   'trigger-file-input',
 ])
 
@@ -650,6 +663,61 @@ function isRowEditable(row) {
 // 可编辑行应用特殊 class，用于深蓝色外边框高亮标识
 function rowClassName({ row }) {
   return isRowEditable(row) ? 'aps-editing-row' : ''
+}
+
+// ================== 区块式选择 ==================
+// 勾选态由选中集合派生：判断某行是否处于选中集合中
+function isRowSelected(row) {
+  return props.planState.selectedRows.includes(row)
+}
+
+// 计算某行所在品种的连续区块：从该行向前后扩展，收集连续且品种相同的行
+function findProductBlock(row) {
+  const rows = props.planState.tableData || []
+  const idx = rows.indexOf(row)
+  if (idx === -1) return []
+  const product = row?.product
+  const block = [row]
+  for (let i = idx - 1; i >= 0 && rows[i].product === product; i--) block.unshift(rows[i])
+  for (let i = idx + 1; i < rows.length && rows[i].product === product; i++) block.push(rows[i])
+  return block
+}
+
+// 点击行勾选框：整块已选中则取消选中整块，否则选中该品种连续区块
+function onToggleBlock(row) {
+  const state = props.planState
+  const block = findProductBlock(row)
+  if (!block.length) return
+  const allSelected = block.every((r) => state.selectedRows.includes(r))
+  if (allSelected) {
+    state.selectedRows = state.selectedRows.filter((r) => !block.includes(r))
+  } else {
+    state.selectedRows = block
+  }
+}
+
+// 表头全选态：当前已渲染行全部选中时为 true
+const isAllSelected = computed(() => {
+  const rows = props.filteredTableData || []
+  return rows.length > 0 && rows.every((r) => props.planState.selectedRows.includes(r))
+})
+
+// 表头半选态：部分行选中时显示半选样式
+const isIndeterminate = computed(() => {
+  const rows = props.filteredTableData || []
+  if (!rows.length) return false
+  const selectedCount = rows.filter((r) => props.planState.selectedRows.includes(r)).length
+  return selectedCount > 0 && selectedCount < rows.length
+})
+
+// 表头全选/取消全选：选中全部数据行（含未渲染行，滚动后自动补选），或清空选中
+function onToggleAll() {
+  const state = props.planState
+  if (isAllSelected.value) {
+    state.selectedRows = []
+  } else {
+    state.selectedRows = [...state.tableData]
+  }
 }
 
 // 表格横向滚动容器（el-table 内部负责横向滚动的 scrollbar wrap）
@@ -764,38 +832,21 @@ function onColumnLayoutReady() {
 
 onMounted(() => {
   bindHScroll()
+  // 监听纵向滚动：接近底部时触发分片加载
+  wrapRef.value?.addEventListener('scroll', onWrapScroll)
   window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  wrapRef.value?.removeEventListener('scroll', onWrapScroll)
   if (tableScrollWrap) tableScrollWrap.removeEventListener('scroll', syncHScroll)
 })
 
-// 取消选择时同步清空表格的选中状态
+// 取消选择：清空选中集合，选择框勾选态随选中集合自动刷新
 function onCancelSelection() {
-  tableRef.value?.clearSelection()
   emit('cancel-selection')
 }
-
-// 方案切换或搜索条件变化后，恢复当前方案已保存的选中状态
-watch(
-  () => props.filteredTableData,
-  () => {
-    nextTick(() => {
-      const saved = props.planState.selectedRows || []
-      if (!tableRef.value || !saved.length) return
-      props.filteredTableData.forEach((row) => {
-        if (saved.includes(row)) {
-          tableRef.value.toggleRowSelection(row, true)
-        }
-      })
-      // 数据变化后重新同步横向滚动条
-      handleResize()
-    })
-  },
-  { immediate: true }
-)
 
 // 保存排序后，滚动定位到新增行
 watch(
@@ -813,13 +864,8 @@ watch(
   { immediate: false }
 )
 
-function onSelectionChange(selection) {
-  emit('selection-change', selection)
-}
-
 function onBatchDelete() {
   emit('batch-delete')
-  nextTick(() => tableRef.value?.clearSelection())
 }
 
 function onResetSearch() {
@@ -886,8 +932,18 @@ function onEditRow(row, index) {
   emit('edit-row', row, index)
 }
 
-function onDeleteRow(index) {
-  emit('delete-row', index)
+function onDeleteRow(row) {
+  emit('delete-row', row)
+}
+
+// 纵向滚动接近底部时触发加载更多（分片渲染追加下一片，保持从上至下滚动体验）
+function onWrapScroll() {
+  const wrap = wrapRef.value
+  if (!wrap) return
+  const distance = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight
+  if (distance < 120) {
+    emit('load-more')
+  }
 }
 
 function onClickImport() {
@@ -1096,9 +1152,9 @@ function onClickImport() {
     text-align: center !important;
   }
 
-  // 多选列：复选框在单元格内始终水平居中（覆盖 EP 默认 inline-flex 布局）
-  :deep(.el-table__header th.el-table-column--selection .cell),
-  :deep(.el-table__body td.el-table-column--selection .cell) {
+  // 区块选择列：复选框在单元格内始终水平居中（覆盖 EP 默认 inline-flex 布局）
+  :deep(th.aps-selection-col .cell),
+  :deep(td.aps-selection-col .cell) {
     display: flex !important;
     justify-content: center;
     align-items: center;

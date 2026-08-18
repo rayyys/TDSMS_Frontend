@@ -63,10 +63,9 @@
         <ApsDataPanel
           v-else
           :plan-state="planState"
-          :filtered-table-data="filteredTableData"
+          :filtered-table-data="displayTableData"
           :header-cell-style="headerCellStyle"
           :cell-style="cellStyle"
-          @selection-change="onSelectionChange"
           @cancel-selection="onCancelSelection"
           @batch-delete="onBatchDelete"
           @reset-search="onResetSearch"
@@ -75,6 +74,7 @@
           @save-table="onSaveTable"
           @edit-row="onEditRow"
           @delete-row="onDeleteRow"
+          @load-more="loadMoreRows"
           @trigger-file-input="triggerFileInput"
         />
       </div>
@@ -106,6 +106,7 @@ const {
   activePlanId,
   planState,
   filteredTableData,
+  displayTableData,
   listLoading,
   onAddPlan,
   onSelectPlan,
@@ -121,13 +122,14 @@ const {
   onFileDrop,
   onDownloadTemplate,
   // 工具栏操作
-  onSelectionChange,
   onCancelSelection,
   onBatchDelete,
   onResetSearch,
   onAddRow,
   onExportTable,
   onSaveTable,
+  // 分片渲染（滚动加载更多）
+  loadMoreRows,
   // 行操作
   onEditRow,
   onDeleteRow,

@@ -1,0 +1,132 @@
+{
+    "success": true,
+    "code": 200,
+    "message": "查询成功",
+    "data": {
+        "total": 733,
+        "page": 1,
+        "pageSize": 10,
+        "records": [
+            {
+                "itemId": 2200,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000114",
+                "inventoryName": "红霉素眼膏",
+                "specification": "2g/支×25支/包×64包/件×1600支/箱",
+                "u8CurrentStock": 5566400,
+                "monthlyProductionPlan": 3000000,
+                "submittedTotal": 3000000,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2201,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000115",
+                "inventoryName": "红霉素眼膏（贴牌）",
+                "specification": "2g/支×2支/包×360包/件×720支/箱",
+                "u8CurrentStock": 92160,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2202,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000131",
+                "inventoryName": "红霉素眼膏",
+                "specification": "2.5g×500支",
+                "u8CurrentStock": 1307000,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2203,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000141",
+                "inventoryName": "红霉素眼膏",
+                "specification": "4gx400支",
+                "u8CurrentStock": 197750,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2204,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000133",
+                "inventoryName": "红霉素眼膏(铝管)",
+                "specification": "2.5g×0.5%×2支/盒×360盒/箱",
+                "u8CurrentStock": 73440,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2205,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000134",
+                "inventoryName": "红霉素眼膏(铝管)",
+                "specification": "2.5g×3支/盒×400盒/箱",
+                "u8CurrentStock": null,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2206,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000215",
+                "inventoryName": "盐酸金霉素眼膏",
+                "specification": "2g/支×25支/包×64包/件×1600支/箱",
+                "u8CurrentStock": 819200,
+                "monthlyProductionPlan": 1060000,
+                "submittedTotal": 1060000,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2207,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000214",
+                "inventoryName": "盐酸金霉素眼膏",
+                "specification": "2.5g×500支/件",
+                "u8CurrentStock": 364690,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2208,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000231",
+                "inventoryName": "盐酸金霉素眼膏",
+                "specification": "2.5克/支x2支/盒x360盒/箱",
+                "u8CurrentStock": null,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            },
+            {
+                "itemId": 2209,
+                "fileId": 4,
+                "departmentName": "302车间",
+                "materialCode": "2001000221",
+                "inventoryName": "盐酸金霉素眼膏",
+                "specification": "4gx400支",
+                "u8CurrentStock": 360900,
+                "monthlyProductionPlan": null,
+                "submittedTotal": 0,
+                "createTime": "2026-08-18 09:14:50"
+            }
+        ]
+    }
+}
