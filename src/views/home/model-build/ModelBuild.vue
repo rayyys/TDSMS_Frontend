@@ -298,7 +298,7 @@
   <el-dialog
     v-model="matchCheckVisible"
     title="数据匹配校验"
-    width="720px"
+    width="960px"
     align-center
     destroy-on-close
     class="data-match-check-dialog"
@@ -315,15 +315,38 @@
         缺失记录数量：<span class="count-num">{{ matchCheckData.unmatchedCount }}</span> 条
       </div>
       <el-table
-        :data="matchCheckData.records"
+        :data="matchPagedRows"
         class="match-check-table"
-        height="320"
         border
+        :row-class-name="matchRowClassName"
       >
         <el-table-column prop="inventoryName" label="存货名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="specification" label="规格" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="reason" label="未匹配原因" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="reason" label="未匹配原因" min-width="220" show-overflow-tooltip />
       </el-table>
+      <!-- 分页区：左下角显示总条数，右侧分页 + 页面跳转（参考任务数据页表格形态） -->
+      <div class="match-pagination-row">
+        <span class="match-total-count">共 {{ matchTotalRows }} 条</span>
+        <div class="match-pagination-right">
+          <el-pagination
+            v-model:current-page="matchCurrentPage"
+            :total="matchTotalRows"
+            :page-size="matchPageSize"
+            layout="prev, pager, next"
+          />
+          <!-- 页面跳转：跳转至 x 页 按钮 -->
+          <div class="match-jump-box">
+            <span class="jump-label">跳转至</span>
+            <el-input
+              v-model="matchJumpPage"
+              class="jump-input"
+              @keyup.enter="handleMatchJump"
+            />
+            <span class="jump-label">页</span>
+            <el-button class="jump-btn" @click="handleMatchJump">跳转</el-button>
+          </div>
+        </div>
+      </div>
     </div>
     <template #footer>
       <div class="match-check-footer">
@@ -356,6 +379,14 @@ const {
   // 数据匹配校验弹窗
   matchCheckVisible,
   matchCheckData,
+  // 未匹配记录分页
+  matchPagedRows,
+  matchRowClassName,
+  matchPageSize,
+  matchCurrentPage,
+  matchTotalRows,
+  matchJumpPage,
+  handleMatchJump,
   closeMatchCheckDialog,
   handleContinueSolveSkip,
   handleGoToApsArchive,

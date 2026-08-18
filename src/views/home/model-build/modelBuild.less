@@ -517,6 +517,114 @@
       color: #303133;
       font-weight: 600;
     }
+
+    // 占位行：保留行高，隐藏单元格文字，与普通行视觉一致但无内容
+    :deep(.row-placeholder) {
+      .cell {
+        visibility: hidden;
+      }
+      td {
+        background: transparent !important;
+      }
+    }
+  }
+
+  // 分页区（参考任务数据页表格形态）：左下角总条数 + 右侧分页与页面跳转
+  .match-pagination-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    gap: 12px;
+
+    .match-total-count {
+      font-size: 14px;
+      color: #606266;
+    }
+
+    .match-pagination-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    // 页面跳转：跳转至 x 页 按钮
+    .match-jump-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .jump-label {
+        font-size: 14px;
+        color: #606266;
+        white-space: nowrap;
+      }
+
+      .jump-input {
+        width: 48px;
+
+        :deep(.el-input__wrapper) {
+          height: 32px;
+          border-radius: 4px;
+          padding: 0 8px;
+        }
+      }
+
+      .jump-btn {
+        height: 32px;
+        padding: 0 14px;
+        font-size: 14px;
+        border-radius: 4px;
+        color: #606266;
+        border: 1px solid #dcdfe6;
+        background: #fff;
+
+        &:hover {
+          color: #1c4b8e;
+          border-color: #004AA9;
+          background-color: #fff;
+        }
+      }
+    }
+
+    // 方形带边框分页按钮
+    :deep(.el-pagination button),
+    :deep(.el-pagination .el-pager li) {
+      border: 1px solid #dcdfe6;
+      background: #fff;
+      border-radius: 4px;
+      min-width: 32px;
+      height: 32px;
+      line-height: 30px;
+      font-weight: normal;
+      color: #606266;
+      margin: 0 4px;
+
+      &.is-active {
+        color: #fff;
+        background-color: #004AA9;
+        border-color: #004AA9;
+      }
+
+      &:hover {
+        color: #004AA9;
+        border-color: #004AA9;
+      }
+
+      &.is-active:hover {
+        color: #fff;
+        background-color: #1c4b8e;
+        border-color: #1c4b8e;
+      }
+    }
+
+    :deep(.el-pagination .el-pager) {
+      gap: 0;
+    }
+
+    :deep(.el-pagination) {
+      gap: 4px;
+    }
   }
 
   .match-check-footer {

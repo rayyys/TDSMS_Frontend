@@ -193,6 +193,12 @@ export function useModelBuild() {
     records: [],
   })
 
+  // —— 未匹配记录分页（每页固定 10 条，参考任务数据页表格形态）——
+  const matchPageSize = 10
+  const matchCurrentPage = ref(1)
+  const matchTotalRows = ref(0)
+  const matchJumpPage = ref('')
+
   /**
    * 根据名称和规格映射状态计算未匹配原因
    * @param {Object} record 单条未匹配记录
@@ -217,12 +223,48 @@ export function useModelBuild() {
         reason: getUnmatchReason(record),
       })),
     }
+    // 重置分页：每次打开弹窗均回到第一页
+    matchTotalRows.value = matchCheckData.value.records.length
+    matchCurrentPage.value = 1
+    matchJumpPage.value = ''
     matchCheckVisible.value = true
   }
 
   // 关闭数据匹配校验弹窗
   function closeMatchCheckDialog() {
     matchCheckVisible.value = false
+  }
+
+  // 当前页未匹配记录：按每页 10 条切片，不足 10 条时用占位行补齐，保证表格高度恒定
+  const matchPagedRows = computed(() => {
+    const start = (matchCurrentPage.value - 1) * matchPageSize
+    const rows = matchCheckData.value.records.slice(start, start + matchPageSize)
+    const fillCount = matchPageSize - rows.length
+    if (fillCount > 0) {
+      // 占位行：_isPlaceholder 标记用于样式区分（隐藏文字但保留行高）
+      const fillers = Array.from({ length: fillCount }, () => ({ _isPlaceholder: true }))
+      return [...rows, ...fillers]
+    }
+    return rows
+  })
+
+  // 行 class：占位行应用 row-placeholder 类，用于 CSS 隐藏文字但保留行高
+  function matchRowClassName({ row }) {
+    if (row && row._isPlaceholder) return 'row-placeholder'
+    return ''
+  }
+
+  // 未匹配记录页面跳转：越界时自动收敛到首尾页
+  function handleMatchJump() {
+    const page = Number(matchJumpPage.value)
+    // 非法输入（非数字 / 小于 1）时忽略
+    if (!page || page < 1) {
+      matchJumpPage.value = ''
+      return
+    }
+    const maxPage = Math.max(1, Math.ceil(matchTotalRows.value / matchPageSize))
+    matchCurrentPage.value = Math.min(page, maxPage)
+    matchJumpPage.value = ''
   }
 
   async function handleStartSolve(policy = 'SKIP') {
@@ -433,6 +475,14 @@ export function useModelBuild() {
     // 数据匹配校验弹窗
     matchCheckVisible,
     matchCheckData,
+    // 未匹配记录分页
+    matchPagedRows,
+    matchRowClassName,
+    matchPageSize,
+    matchCurrentPage,
+    matchTotalRows,
+    matchJumpPage,
+    handleMatchJump,
     closeMatchCheckDialog,
     handleContinueSolveSkip,
     handleGoToApsArchive,
