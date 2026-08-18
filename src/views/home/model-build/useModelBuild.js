@@ -10,6 +10,7 @@ import {
   getSolveTaskLogs,
   stopSolveTask,
   getTaskDetailFilterOptions,
+  matchCheckSolve,
 } from '@/api/scheduling'
 
 export function useModelBuild() {
@@ -196,50 +197,53 @@ export function useModelBuild() {
   // 校验未通过时不启用原生禁用，保留可点击状态以给出友好提示（视觉置灰由 canStartSolve 控制）
   const isSolveBtnDisabled = computed(() => solvingLoading.value)
 
-  // 数据匹配校验弹窗显隐与数据
+  // 数据匹配校验弹窗显隐与数据（来自 /solve/matchCheck 接口，分页查询未匹配记录）
   const matchCheckVisible = ref(false)
   const matchCheckData = ref({
-    department: '',
-    matchedCount: 0,
-    unmatchedCount: 0,
-    records: [],
+    status: true, // false 表示存在未匹配记录，需弹窗提示
+    total: 0,     // 未匹配记录总条数
+    records: [],  // 当前页未匹配记录（对应接口 missingData）
   })
+  const matchCheckLoading = ref(false)
 
-  // —— 未匹配记录分页（每页固定 10 条，参考任务数据页表格形态）——
+  // —— 未匹配记录分页（每页固定 10 条，与接口 pageSize 保持一致）——
   const matchPageSize = 10
   const matchCurrentPage = ref(1)
   const matchTotalRows = ref(0)
   const matchJumpPage = ref('')
 
-  /**
-   * 根据名称和规格映射状态计算未匹配原因
-   * @param {Object} record 单条未匹配记录
-   * @returns {string} 未匹配原因文案
-   */
-  function getUnmatchReason(record) {
-    const { nameMapped, specificationMapped } = record
-    if (!nameMapped && !specificationMapped) return 'APS中未找到对应的品种+包装规格'
-    if (!nameMapped) return 'APS中未找到对应的品种'
-    if (!specificationMapped) return 'APS中未找到对应的包装规格'
-    return 'APS中未找到对应的品种+包装规格'
-  }
-
-  // 打开数据匹配校验弹窗
-  function openMatchCheckDialog(data) {
-    matchCheckData.value = {
-      department: data.department || '',
-      matchedCount: data.matchedCount || 0,
-      unmatchedCount: data.unmatchedCount || 0,
-      records: (data.unmatchedRecords || []).map((record) => ({
-        ...record,
-        reason: getUnmatchReason(record),
-      })),
-    }
-    // 重置分页：每次打开弹窗均回到第一页
-    matchTotalRows.value = matchCheckData.value.records.length
+  // 打开数据匹配校验弹窗：重置分页并拉取未匹配记录第一页
+  async function openMatchCheckDialog() {
+    matchCheckVisible.value = true
     matchCurrentPage.value = 1
     matchJumpPage.value = ''
-    matchCheckVisible.value = true
+    await fetchMatchCheckPage(1)
+  }
+
+  // 分页拉取未匹配记录：按接口返回的 missingData 渲染当前页
+  async function fetchMatchCheckPage(page) {
+    const taskId = schedulingStore.taskInfo?.taskId ?? schedulingStore.taskInfo?.importId
+    if (!taskId) return
+    matchCheckLoading.value = true
+    try {
+      const res = await matchCheckSolve({ taskId, page, pageSize: matchPageSize })
+      const data = res?.data?.data
+      if (data) {
+        matchCheckData.value.status = data.status !== false
+        matchCheckData.value.total = data.total ?? 0
+        matchCheckData.value.records = Array.isArray(data.missingData) ? data.missingData : []
+        matchTotalRows.value = data.total ?? 0
+      }
+    } catch {
+      ElMessage.error('未匹配记录查询失败')
+    } finally {
+      matchCheckLoading.value = false
+    }
+  }
+
+  // 弹窗内切换页码：重新请求对应页数据
+  async function handleMatchPageChange(page) {
+    await fetchMatchCheckPage(page)
   }
 
   // 关闭数据匹配校验弹窗
@@ -247,10 +251,9 @@ export function useModelBuild() {
     matchCheckVisible.value = false
   }
 
-  // 当前页未匹配记录：按每页 10 条切片，不足 10 条时用占位行补齐，保证表格高度恒定
+  // 当前页未匹配记录：不足 pageSize 时用占位行补齐，保证表格高度恒定
   const matchPagedRows = computed(() => {
-    const start = (matchCurrentPage.value - 1) * matchPageSize
-    const rows = matchCheckData.value.records.slice(start, start + matchPageSize)
+    const rows = matchCheckData.value.records
     const fillCount = matchPageSize - rows.length
     if (fillCount > 0) {
       // 占位行：_isPlaceholder 标记用于样式区分（隐藏文字但保留行高）
@@ -266,7 +269,7 @@ export function useModelBuild() {
     return ''
   }
 
-  // 未匹配记录页面跳转：越界时自动收敛到首尾页
+  // 未匹配记录页面跳转：越界时自动收敛到首尾页，并触发对应页数据拉取
   function handleMatchJump() {
     const page = Number(matchJumpPage.value)
     // 非法输入（非数字 / 小于 1）时忽略
@@ -277,9 +280,10 @@ export function useModelBuild() {
     const maxPage = Math.max(1, Math.ceil(matchTotalRows.value / matchPageSize))
     matchCurrentPage.value = Math.min(page, maxPage)
     matchJumpPage.value = ''
+    fetchMatchCheckPage(matchCurrentPage.value)
   }
 
-  async function handleStartSolve(policy = 'SKIP') {
+  async function handleStartSolve(policy = 'SKIP', skipMatchCheck = false) {
     const status = schedulingStore.solveStatus
 
     // running（求解中）和 done（已完成）：直接跳转查看，不触发提交
@@ -317,6 +321,26 @@ export function useModelBuild() {
     if (!taskId) {
       ElMessage.warning('未获取到任务ID，请重新上传文件')
       return
+    }
+
+    // 数据匹配预校验：调用 /solve/matchCheck 查询是否存在未匹配 APS 档案的记录
+    // 存在未匹配记录时弹窗让用户选择 取消/跳过/前往档案；
+    // "继续求解（跳过缺失项）" 会携带 skipMatchCheck 跳过此预校验，避免弹窗循环
+    if (!skipMatchCheck) {
+      solvingLoading.value = true
+      try {
+        // 仅需判断是否存在未匹配记录，pageSize 传 1 轻量探测
+        const matchRes = await matchCheckSolve({ taskId, page: 1, pageSize: 1 })
+        const matchData = matchRes?.data?.data
+        if (matchData && (matchData.total ?? 0) > 0) {
+          await openMatchCheckDialog()
+          return
+        }
+      } catch {
+        // 预校验接口异常不阻塞求解流程，放行由后端在 start 时兜底
+      } finally {
+        solvingLoading.value = false
+      }
     }
 
     // 人员容量中文键 → 英文键映射（与接口 personnelCapacity 字段对齐）
@@ -394,14 +418,9 @@ export function useModelBuild() {
       const errStatus = error?.response?.status
       const errData = error?.response?.data
       if (errStatus === 409) {
-        // 409 存在两种业务语义：
-        // 1) 存在未匹配 APS 档案的计划数据，需弹窗让用户选择取消/跳过/前往档案；
-        // 2) 当前任务已有正在执行的求解任务，提示用户勿重复提交。
-        if (errData?.data?.unmatchedRecords) {
-          openMatchCheckDialog(errData.data)
-        } else {
-          ElMessage.warning(errData?.message || '当前任务正在求解，请勿重复提交')
-        }
+        // 409：当前任务已有正在执行的求解任务，提示用户勿重复提交
+        // （未匹配 APS 档案记录的校验已改为提交前调用 /solve/matchCheck 预校验）
+        ElMessage.warning(errData?.message || '当前任务正在求解，请勿重复提交')
         solvingLoading.value = false
       } else if (errStatus === 401) {
         // 401 已在响应拦截器中统一处理（提示 + 跳转）
@@ -418,14 +437,11 @@ export function useModelBuild() {
 
   // 弹窗中点击「继续求解（跳过缺失项）」：关闭弹窗并以 SKIP 策略重新提交
   async function handleContinueSolveSkip() {
-    if (matchCheckData.value.matchedCount === 0) {
-      ElMessage.warning('当前部门无可匹配记录，无法继续求解')
-      return
-    }
     closeMatchCheckDialog()
     solvingLoading.value = true
     try {
-      await handleStartSolve('SKIP')
+      // 跳过匹配预校验，直接以 SKIP 策略提交（未匹配记录不参与本次求解）
+      await handleStartSolve('SKIP', true)
     } finally {
       solvingLoading.value = false
     }
@@ -487,6 +503,7 @@ export function useModelBuild() {
     // 数据匹配校验弹窗
     matchCheckVisible,
     matchCheckData,
+    matchCheckLoading,
     // 未匹配记录分页
     matchPagedRows,
     matchRowClassName,
@@ -495,6 +512,7 @@ export function useModelBuild() {
     matchTotalRows,
     matchJumpPage,
     handleMatchJump,
+    handleMatchPageChange,
     closeMatchCheckDialog,
     handleContinueSolveSkip,
     handleGoToApsArchive,

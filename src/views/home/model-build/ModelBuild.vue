@@ -294,7 +294,7 @@
   <!-- 底部吸底占位盒：位于操作栏下方，吸底定位 -->
   <div class="action-bar-space"></div>
 
-  <!-- 数据匹配校验弹窗：start 接口返回未匹配 APS 档案记录时展示 -->
+  <!-- 数据匹配校验弹窗：solve/matchCheck 接口查询到未匹配 APS 档案记录时展示 -->
   <el-dialog
     v-model="matchCheckVisible"
     title="数据匹配校验"
@@ -312,9 +312,10 @@
         </span>
       </div>
       <div class="match-check-count">
-        缺失记录数量：<span class="count-num">{{ matchCheckData.unmatchedCount }}</span> 条
+        缺失记录数量：<span class="count-num">{{ matchCheckData.total }}</span> 条
       </div>
       <el-table
+        v-loading="matchCheckLoading"
         :data="matchPagedRows"
         class="match-check-table"
         border
@@ -349,6 +350,7 @@
             :total="matchTotalRows"
             :page-size="matchPageSize"
             layout="prev, pager, next"
+            @current-change="handleMatchPageChange"
           />
           <!-- 页面跳转：跳转至 x 页 按钮 -->
           <div class="match-jump-box">
@@ -367,10 +369,7 @@
     <template #footer>
       <div class="match-check-footer">
         <el-button @click="closeMatchCheckDialog">取消求解</el-button>
-        <el-button
-          :disabled="matchCheckData.matchedCount === 0"
-          @click="handleContinueSolveSkip"
-        >
+        <el-button @click="handleContinueSolveSkip">
           继续求解（跳过缺失项）
         </el-button>
         <el-button type="primary" @click="handleGoToApsArchive">前往APS排产信息档案</el-button>
@@ -395,6 +394,7 @@ const {
   // 数据匹配校验弹窗
   matchCheckVisible,
   matchCheckData,
+  matchCheckLoading,
   // 未匹配记录分页
   matchPagedRows,
   matchRowClassName,
@@ -403,6 +403,7 @@ const {
   matchTotalRows,
   matchJumpPage,
   handleMatchJump,
+  handleMatchPageChange,
   closeMatchCheckDialog,
   handleContinueSolveSkip,
   handleGoToApsArchive,

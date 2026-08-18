@@ -282,6 +282,21 @@ export function startSolveTask(data) {
 }
 
 /**
+ * 数据匹配校验（分页查询未匹配 APS 档案的记录）
+ * POST /solve/matchCheck
+ * 开始求解前预校验：存在未匹配的品种或规格时，弹窗提示用户先维护 APS 档案
+ * @param {Object} data { taskId, page, pageSize }
+ * @returns {Promise} data: { status, total, page, pageSize, missingData: [{ inventoryName, specification, reason }] }
+ */
+export function matchCheckSolve(data) {
+  return request({
+    method: 'post',
+    url: '/solve/matchCheck',
+    data,
+  })
+}
+
+/**
  * 查询求解任务状态和结果
  * GET /solve/query
  * 前端创建求解任务后定时调用，只能查询当前用户创建的求解任务
