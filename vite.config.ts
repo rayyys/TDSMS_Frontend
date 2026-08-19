@@ -38,10 +38,10 @@ export default defineConfig(() => {
         // 前端8006 后端8007，ip不变
         '/tdsms': {
           //服务器
-          // target: 'http://60.205.199.162:8007',
+          target: 'http://60.205.199.162:8007',
 
           //本地
-          target: 'http://192.168.3.72:8000',
+          // target: 'http://192.168.3.72:8000',
           changeOrigin: true,
         },
       },

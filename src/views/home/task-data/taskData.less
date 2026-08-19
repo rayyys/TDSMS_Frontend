@@ -173,8 +173,8 @@
     width: 100%;
     // 强制表格容器出现横向滚动条
     overflow-x: auto;
-    // 不限制纵向 overflow：缩放比放大时行高增大，容器需要纵向扩展以容纳全部 10 行
-    overflow-y: visible;
+    // 隐藏纵向滚动条，避免为竖向滚动条预留占位空间
+    overflow-y: hidden;
 
     // 自定义横向滚动条样式（更明显的视觉反馈）
     &::-webkit-scrollbar {
@@ -219,6 +219,11 @@
         // 此处用 !important 覆盖，统一加大行高（上下 padding 14 + line-height 22）
         padding: 5px 10px !important;
         line-height: 26px !important;
+        // 关键修复：Element Plus 在 show-overflow-tooltip 时会给 .cell 设置内联整数宽度
+        // （realWidth - 1），与单元格自身的 padding 叠加后会超出表格右边缘 3~10px，
+        // 导致 el-scrollbar 判定存在横向溢出而出现横向滚动条。
+        // 这里裁剪单元格的越界部分，使滚动区 scrollWidth 与 clientWidth 一致，消除横向滚动条。
+        overflow: hidden;
       }
 
       // 单元格内文字不换行，显示省略号

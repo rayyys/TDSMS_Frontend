@@ -541,6 +541,11 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
           border-radius: 4px;
           padding: 0 8px;
         }
+
+        // 输入的数字居中对齐
+        .el-input__inner {
+          text-align: center;
+        }
       }
 
       .jump-btn {
