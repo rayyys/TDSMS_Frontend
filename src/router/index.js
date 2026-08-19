@@ -92,3 +92,18 @@ router.beforeEach(async (to, from) => {
 })
 
 export default router
+
+/**
+ * 后台预加载全部路由组件
+ * 解决开发/生产环境下懒加载路由首次跳转时按需编译、网络加载造成的卡顿、白屏问题。
+ * 应用挂载后在浏览器空闲时预取所有页面组件并缓存，点击任意页面即可即时切换。
+ */
+export function prefetchAllRoutes() {
+  routes.forEach((route) => {
+    const load = route.component
+    if (typeof load === 'function') {
+      // 预取失败静默处理，不影响后续正式加载
+      load().catch(() => {})
+    }
+  })
+}

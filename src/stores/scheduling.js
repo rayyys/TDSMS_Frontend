@@ -158,7 +158,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     const first = Object.keys(map)[0]
     if (first) activeSheet.value = first
     parseError.value = ''
-    persistState()
+    persistFullState()
   }
 
   /**
@@ -169,7 +169,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   function loadApiSheetData(mode, records) {
     if (!Array.isArray(records) || records.length === 0) {
       sheetDataMap.value[mode] = { columns: [], rows: [], annotated: [] }
-      persistState()
+      persistFullState()
       return
     }
     const metaKeys = new Set(['id', 'rowNo', 'isAbnormal', 'abnormalReason'])
@@ -188,7 +188,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       })
     }
     sheetDataMap.value[mode] = { columns, rows, annotated }
-    persistState()
+    persistFullState()
   }
 
   // —— 模型构建配置 ——
@@ -227,16 +227,15 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     return goal?.label || ''
   })
 
-  // 持久化函数：收集当前状态并写入 sessionStorage
-  function persistState() {
-    saveToSession({
+  // 收集除任务数据（sheetDataMap）外的全部轻量状态快照，供轻量/全量持久化复用
+  function collectMetaState() {
+    return {
       currentStepIndex: currentStepIndex.value,
       maxVisitedStepIndex: maxVisitedStepIndex.value,
       uploadedFileName: uploadedFileName.value,
       taskRemark: taskRemark.value,
       taskInfo: taskInfo.value,
       activeSheet: activeSheet.value,
-      sheetDataMap: sheetDataMap.value,
       optimizationGoal: optimizationGoal.value,
       earliestStartTime: earliestStartTime.value,
       deadlineDate: deadlineDate.value,
@@ -262,7 +261,19 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       backendLogs: backendLogs.value,
       frontendSuffixLogs: frontendSuffixLogs.value,
       solveElapsed: solveElapsed.value,
-    })
+    }
+  }
+
+  // 轻量持久化函数：将上述轻量状态写入主键（不含任务数据 sheetDataMap）。
+  // 步骤切换 / 修改配置 / 求解状态变化时调用，避免每次跳转都全量序列化任务数据导致主线程卡顿。
+  // 任务数据真实变化时才由 persistFullState 单独序列化写入数据键。
+  function persistState() {
+    saveToSession(collectMetaState())
+  }
+
+  // 全量持久化函数：轻量状态 + 任务数据 sheetDataMap 一起写入（仅数据真实变化时调用）
+  function persistFullState() {
+    saveToSession({ ...collectMetaState(), sheetDataMap: sheetDataMap.value })
   }
 
   // 监听模型构建配置变更，自动持久化
