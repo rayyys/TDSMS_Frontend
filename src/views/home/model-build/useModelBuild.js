@@ -79,8 +79,13 @@ export function useModelBuild() {
 
   // 导出给模板的选项：优先用后端数据，为空时回退到本地提取值
   const departmentOptions = computed(() =>
-    remoteDepartmentOptions.value.length > 0 ? remoteDepartmentOptions.value : localDepartmentOptions.value,
+    remoteDepartmentOptions.value.length > 0
+      ? remoteDepartmentOptions.value
+      : localDepartmentOptions.value,
   )
+
+  // 部门选项请求序号：用于丢弃连续切换任务时过期的并发响应，避免旧任务部门选项覆盖新任务
+  let departmentOptionsSeq = 0
 
   /**
    * 拉取部门下拉选项
@@ -92,7 +97,11 @@ export function useModelBuild() {
       remoteDepartmentOptions.value = []
       return
     }
+    // 发起新请求前先清空旧选项，避免切换任务后短暂残留上一任务的部门列表
+    remoteDepartmentOptions.value = []
     departmentOptionsLoading.value = true
+    // 请求序号：仅应用最后一次发起的响应，防止旧响应晚到覆盖新结果
+    const seq = ++departmentOptionsSeq
     try {
       // 新接口为 POST，请求体需包含三个筛选的当前值；本页只需部门选项，未选时传空数组表示不限制
       const res = await getTaskDetailFilterOptions({
@@ -102,14 +111,20 @@ export function useModelBuild() {
         monthlyProductionPlans: [],
         inventoryNames: [],
       })
+      // 若期间又发起了新的拉取，丢弃本次结果，避免旧数据覆盖新数据
+      if (seq !== departmentOptionsSeq) return
       // 兼容 { data: [...] } 与 { data: { data: [...] } } 两种返回结构
       const arr = res?.data?.data ?? res?.data
       remoteDepartmentOptions.value = Array.isArray(arr) ? arr : []
     } catch (err) {
-      // 接口异常不打扰用户，清空远程选项后自动回退到本地提取值
+      // 仅当仍是最新请求时才清空，防止过期请求的错误响应干扰当前请求；接口异常自动回退到本地提取值
+      if (seq !== departmentOptionsSeq) return
       remoteDepartmentOptions.value = []
     } finally {
-      departmentOptionsLoading.value = false
+      // 仅最新请求负责关闭 loading，过期请求的 finally 不干扰新请求的 loading 状态
+      if (seq === departmentOptionsSeq) {
+        departmentOptionsLoading.value = false
+      }
     }
   }
 
@@ -201,8 +216,8 @@ export function useModelBuild() {
   const matchCheckVisible = ref(false)
   const matchCheckData = ref({
     status: true, // false 表示存在未匹配记录，需弹窗提示
-    total: 0,     // 未匹配记录总条数
-    records: [],  // 当前页未匹配记录（对应接口 missingData）
+    total: 0, // 未匹配记录总条数
+    records: [], // 当前页未匹配记录（对应接口 missingData）
   })
   const matchCheckLoading = ref(false)
 
@@ -344,7 +359,12 @@ export function useModelBuild() {
     }
 
     // 人员容量中文键 → 英文键映射（与接口 personnelCapacity 字段对齐）
-    const CAPACITY_KEY_MAP = { 配料: 'mixing', 压片: 'tableting', 包衣: 'coating', 包装: 'packaging' }
+    const CAPACITY_KEY_MAP = {
+      配料: 'mixing',
+      压片: 'tableting',
+      包衣: 'coating',
+      包装: 'packaging',
+    }
     function mapCapacityKeys(capacity) {
       const result = {}
       for (const [key, value] of Object.entries(capacity || {})) {

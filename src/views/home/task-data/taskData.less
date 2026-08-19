@@ -109,8 +109,8 @@
     }
 
     .btn-filter {
-      background-color: #004AA9;
-      border-color: #004AA9;
+      background-color: #004aa9;
+      border-color: #004aa9;
 
       &:hover {
         background-color: #1c4b8e;
@@ -124,8 +124,8 @@
       background: #fff;
 
       &:hover {
-        color: #004AA9;
-        border-color: #004AA9;
+        color: #004aa9;
+        border-color: #004aa9;
         background-color: #f4f7fc;
       }
     }
@@ -154,7 +154,7 @@
           // 与清空按钮保持间距，避免两者紧贴
           margin-left: 8px;
           &:hover {
-            color: #004AA9;
+            color: #004aa9;
           }
         }
       }
@@ -252,10 +252,13 @@
         color: transparent;
       }
 
-      // 修复 el-tooltip 与 el-table 自带宽度计算的冲突
-      :deep(.el-table__cell .cell.el-tooltip) {
-        width: 100% !important;
-      }
+      // 说明：不要再覆盖 .cell.el-tooltip 的 width。
+      // element-plus 在 show-overflow-tooltip 时会给 .cell 设置内联整数宽度（realWidth - 1），
+      // 用于自带的溢出检测（scrollWidth 与 getBoundingClientRect().width 比较）。
+      // 若强行覆盖为 width: 100%，在全局 px→rem 小数像素布局下，
+      // scrollWidth（整数）恒大于 getBoundingClientRect().width（小数），
+      // 导致所有单元格悬停都弹 tooltip（即使数据很短没有省略号）。
+      // 保持 EP 的整数宽度即可：短数据不弹 tooltip，出现省略号时才弹。
 
       // 移除默认底部 1px 亮线
       :deep(.el::before) {
@@ -320,7 +323,7 @@
 
         &:hover {
           color: #1c4b8e;
-          border-color: #004AA9;
+          border-color: #004aa9;
           background-color: #fff;
         }
       }
@@ -341,13 +344,13 @@
 
       &.is-active {
         color: #fff;
-        background-color: #004AA9;
-        border-color: #004AA9;
+        background-color: #004aa9;
+        border-color: #004aa9;
       }
 
       &:hover {
-        color: #004AA9;
-        border-color: #004AA9;
+        color: #004aa9;
+        border-color: #004aa9;
       }
 
       &.is-active:hover {
@@ -365,7 +368,6 @@
       gap: 4px;
     }
   }
-
 }
 
 // ============ 底部操作栏 - 粘性定位（与 model-build 页面完全一致） ============
@@ -376,9 +378,9 @@
   height: 80px;
   padding: 0 40px;
   background: #fff;
-  border-top: 1px solid #DDE8F5;
-  border-right: 1px solid #DDE8F5;
-  border-bottom: 1px solid #DDE8F5;
+  border-top: 1px solid #dde8f5;
+  border-right: 1px solid #dde8f5;
+  border-bottom: 1px solid #dde8f5;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -392,12 +394,12 @@
   }
 
   .btn-prev {
-    color: #004AA9;
+    color: #004aa9;
     border-color: #dcdfe6;
 
     &:hover {
       color: #1c4b8e;
-      border-color: #004AA9;
+      border-color: #004aa9;
       background-color: #f4f7fc;
     }
 
@@ -416,8 +418,8 @@
   }
 
   .btn-next {
-    background-color: #004AA9;
-    border-color: #004AA9;
+    background-color: #004aa9;
+    border-color: #004aa9;
 
     &:hover {
       background-color: #1c4b8e;

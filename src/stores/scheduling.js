@@ -59,6 +59,13 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     uploadedFileRaw.value = file
   }
   function setTaskInfo(info) {
+    // 任务切换（更换文件 / 历史导入 / 重新上传）时重置部门选择，
+    // 避免上一个任务的部门残留污染当前任务的模型构建页
+    const nextTaskId = info?.taskId ?? info?.importId
+    const prevTaskId = taskInfo.value?.taskId ?? taskInfo.value?.importId
+    if (nextTaskId !== prevTaskId) {
+      selectedDepartment.value = ''
+    }
     taskInfo.value = info || null
     // 任务信息是后续步骤（模型构建、求解等）的前置依赖，必须立即持久化
     // 否则刷新页面后 taskId 丢失，导致"未获取到任务ID"错误
@@ -188,7 +195,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const optimizationGoal = ref(saved?.optimizationGoal ?? 'delivery')
   const earliestStartTime = ref(saved?.earliestStartTime ?? getDefaultEarliestStart())
   const deadlineDate = ref(saved?.deadlineDate ?? getDefaultMonthEnd())
-  const maxSolveTime = ref(saved?.maxSolveTime ?? 600) // 秒 TODO: 测试用，上线前改回 saved?.maxSolveTime
+  const maxSolveTime = ref(saved?.maxSolveTime ?? 1200) // 秒 默认 20 分钟；同会话内已保存用户设置时优先恢复
   // const maxSolveTime = ref(600)
   const priority = ref(saved?.priority ?? 0)
   const maxProducTime = ref(saved?.maxProducTime ?? null) // 最大生产时间（来自 /solves/producTime）
