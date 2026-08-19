@@ -449,11 +449,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         const logs = res?.data?.data
         if (res?.data?.success && Array.isArray(logs) && logs.length > 0) {
           // 直接用最新获取的后端日志覆盖原有后端日志内容
-          backendLogs.value = logs.map((log) => ({
-            time: log.createTime ? log.createTime.slice(11, 19) : '',
-            message: log.logContent || '',
-          }))
-          persistState()
+          applyBackendLogs(logs)
         }
       } catch {
         // 轮询失败静默处理，下次继续
@@ -517,6 +513,32 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     } else {
       frontendPrefixLogs.value.push(log)
     }
+  }
+
+  /**
+   * 应用后端日志：覆盖后端日志内容，并把前端"求解任务已启动，开始迭代..."日志的
+   * 时间戳同步为后端日志数组最后一项的 createTime（后端倒序返回，最后一项为最早的启动日志），
+   * 使该条前端日志与首次获取到的后端日志在时间上对齐
+   */
+  function applyBackendLogs(logs) {
+    if (!Array.isArray(logs) || logs.length === 0) return
+    backendLogs.value = logs.map((log) => ({
+      time: log.createTime ? log.createTime.slice(11, 19) : '',
+      message: log.logContent || '',
+    }))
+    // 同步前端启动日志的时间戳为后端日志数组最后一项的 createTime
+    const startCreateTime = logs[logs.length - 1]?.createTime
+    if (startCreateTime) {
+      const startLog = frontendPrefixLogs.value.find(
+        (l) => l.message === '求解任务已启动，开始迭代...',
+      )
+      if (startLog) {
+        startLog.time = startCreateTime.slice(11, 19)
+      }
+      // 同步"开始时间"字段为后端日志最后一项的 createTime，保持时间戳对齐
+      solveStartTime.value = startCreateTime
+    }
+    persistState()
   }
 
   function stopSolve() {
@@ -611,11 +633,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
         const logs = res?.data?.data
         if (res?.data?.success && Array.isArray(logs) && logs.length > 0) {
           // 直接用最新获取的后端日志覆盖原有后端日志内容
-          backendLogs.value = logs.map((log) => ({
-            time: log.createTime ? log.createTime.slice(11, 19) : '',
-            message: log.logContent || '',
-          }))
-          persistState()
+          applyBackendLogs(logs)
         }
       } catch {
         // 静默处理
@@ -660,11 +678,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
             const logs = logsRes?.data?.data
             if (logsRes?.data?.success && Array.isArray(logs) && logs.length > 0) {
               // 超时停止前，用后端最新日志覆盖后端日志内容
-              backendLogs.value = logs.map((log) => ({
-                time: log.createTime ? log.createTime.slice(11, 19) : '',
-                message: log.logContent || '',
-              }))
-              persistState()
+              applyBackendLogs(logs)
             }
           } catch {
             // log 接口调用异常，静默处理
@@ -877,6 +891,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     solveProgress,
     solveLogs,
     backendLogs,
+    applyBackendLogs,
     solveStartTime,
     solveElapsed,
     syncingElapsed,

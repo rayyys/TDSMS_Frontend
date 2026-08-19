@@ -420,11 +420,8 @@ export function useModelBuild() {
               const logsRes = await getSolveTaskLogs({ solveTaskId, afterLogId: 0 })
               const logs = logsRes?.data?.data
               if (logsRes?.data?.success && Array.isArray(logs) && logs.length > 0) {
-                // 用后端最新日志覆盖后端日志内容，前端日志（如"求解任务已启动"）保留在前端前缀日志中
-                schedulingStore.backendLogs = logs.map((log) => ({
-                  time: log.createTime ? log.createTime.slice(11, 19) : '',
-                  message: log.logContent || '',
-                }))
+                // 用后端最新日志覆盖后端日志内容，并同步前端"求解任务已启动"日志的时间戳
+                schedulingStore.applyBackendLogs(logs)
               }
             } catch {
               // 初始日志查询失败不影响后续，轮询会自动恢复
