@@ -54,7 +54,12 @@ export function useAccountManagement() {
         return
       }
       if (result?.data?.records) {
-        users.value = result.data.records
+        const records = result.data.records
+        // 记录初始剩余天数，用于保存后本地推算到期时间
+        records.forEach((r) => {
+          r._originalRemainingDays = r.remainingDays
+        })
+        users.value = records
         totalUsers.value = result.data.total ?? 0
       }
     } catch (err) {
@@ -127,15 +132,36 @@ export function useAccountManagement() {
         userId: row.userId,
         validDays: row.remainingDays,
       })
+      const result = res?.data
       // 接口返回失败（HTTP 200 但 success=false）时，仅提示
-      if (res?.data?.success === false) {
-        ElMessage.error(res.data.message || '保存失败，请重试')
+      if (result?.success === false) {
+        ElMessage.error(result.message || '保存失败，请重试')
         return
       }
+      // 前端临时同步到期时间（优先用后端返回值，其次本地推算），无需用户刷新
+      syncExpireTime(row, result?.data?.expireTime)
       ElMessage.success('保存成功')
     } catch (err) {
       ElMessage.error(err?.response?.data?.message || '保存失败，请重试')
     }
+  }
+
+  // 保存成功后同步到期时间：后端有返回则直接用，否则按剩余天数变化量本地推算
+  function syncExpireTime(row, serverExpireTime) {
+    if (serverExpireTime) {
+      row.expireTime = serverExpireTime
+    } else if (typeof row._originalRemainingDays === 'number' && row.expireTime) {
+      const delta = row.remainingDays - row._originalRemainingDays
+      const date = new Date(String(row.expireTime).replace(/-/g, '/'))
+      if (!isNaN(date.getTime())) {
+        date.setDate(date.getDate() + delta)
+        const pad = (n) => String(n).padStart(2, '0')
+        row.expireTime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+          date.getDate(),
+        )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+      }
+    }
+    row._originalRemainingDays = row.remainingDays
   }
 
   // 启用或停用测试用户

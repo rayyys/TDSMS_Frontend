@@ -273,10 +273,10 @@ function goToWorkflow() {
   router.back()
 }
 
-// 状态为"已过期"的数据行添加 class，配合 CSS 设置红色底色
+// 状态为"已过期"或"停用"的数据行添加 class，配合 CSS 设置红色底色
 function rowClassName({ row }) {
   if (row._isPlaceholder) return 'row-placeholder'
-  if (row.statusName === '已过期') {
+  if (row.statusName === '已过期' || row.status === 0) {
     return 'row-expired'
   }
   return ''

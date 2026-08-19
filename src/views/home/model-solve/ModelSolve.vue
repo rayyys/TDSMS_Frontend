@@ -192,10 +192,10 @@
                   <span class="config-label">人员容量：</span>
                   <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span>
                 </div>
-                <div class="config-item config-item--column">
-                  <!-- <span class="config-label">晚班人员容量：</span> -->
-                  <!-- <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span> -->
-                </div>
+                <!-- <div class="config-item config-item--column"> -->
+                <!-- <span class="config-label">晚班人员容量：</span> -->
+                <!-- <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span> -->
+                <!-- </div> -->
               </div>
             </div>
 

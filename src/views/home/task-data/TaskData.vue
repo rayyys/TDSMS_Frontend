@@ -13,7 +13,7 @@
           <el-select
             v-model="filterDepartment"
             class="td-filter-select td-filter-select--dept"
-            placeholder="请选择部门"
+            placeholder="全部"
             multiple
             collapse-tags
             clearable
@@ -30,7 +30,7 @@
           <el-select
             v-model="filterProductionPlan"
             class="td-filter-select td-filter-select--plan"
-            placeholder="请选择生产计划"
+            placeholder="全部"
             multiple
             collapse-tags
             clearable
@@ -52,7 +52,7 @@
           <el-select
             v-model="filterInventoryName"
             class="td-filter-select td-filter-select--inventory"
-            placeholder="请选择存货名称"
+            placeholder="全部"
             multiple
             collapse-tags
             clearable
