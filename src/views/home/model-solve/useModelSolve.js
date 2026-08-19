@@ -281,7 +281,7 @@ export function useModelSolve() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `可排产结果可视化-${schedulingStore.fileName}`
+      a.download = `可排产结果可视化${schedulingStore.fileName}`
       a.click()
       URL.revokeObjectURL(url)
       ElMessage.success('文件导出成功')

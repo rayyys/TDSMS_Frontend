@@ -2,9 +2,7 @@
   <div class="model-build-page">
     <div class="page-header">
       <h2 class="page-title">模型构建</h2>
-      <p class="page-desc">
-        配置求解所需的业务参数，系统将根据配置进行排程计算。
-      </p>
+      <p class="page-desc">配置求解所需的业务参数，系统将根据配置进行排程计算。</p>
     </div>
 
     <!-- 部门选择（必填，下拉选项来自上传 Excel 的“部门”列） -->
@@ -24,12 +22,7 @@
           :loading="departmentOptionsLoading"
           style="width: 15.25rem !important"
         >
-          <el-option
-            v-for="dept in departmentOptions"
-            :key="dept"
-            :label="dept"
-            :value="dept"
-          />
+          <el-option v-for="dept in departmentOptions" :key="dept" :label="dept" :value="dept" />
         </el-select>
       </div>
     </div>
@@ -179,9 +172,7 @@
                 <span class="rule-unit">班时</span>
               </div>
             </div>
-            <div class="rule-hint">
-              设置自然时间与生产班次的换算规则，用于排产过程中时间计算。
-            </div>
+            <div class="rule-hint">设置自然时间与生产班次的换算规则，用于排产过程中时间计算。</div>
           </div>
         </div>
       </div>
@@ -199,11 +190,7 @@
           <div class="capacity-group">
             <div class="capacity-group-title"></div>
             <div class="capacity-row">
-              <div
-                v-for="key in capacityKeys"
-                :key="`morning-${key}`"
-                class="capacity-item"
-              >
+              <div v-for="key in capacityKeys" :key="`morning-${key}`" class="capacity-item">
                 <span class="capacity-label">{{ key }}用人</span>
                 <div class="capacity-control">
                   <el-input-number
@@ -214,7 +201,7 @@
                     :controls="false"
                     :disabled="isModelBuildLocked"
                     class="stable-input-number"
-                    style="padding-left: 12px;"
+                    style="padding-left: 12px"
                   >
                     <template #suffix>
                       <span class="rule-unit">人</span>
@@ -262,9 +249,7 @@
             </div>
           </div>
         </div>
-        <div class="rule-hint">
-          设置算法最大求解时间，时间越长通常有更多机会得到更优方案。
-        </div>
+        <div class="rule-hint">设置算法最大求解时间，时间越长通常有更多机会得到更优方案。</div>
       </div>
     </div>
   </div>
@@ -295,10 +280,11 @@
   <div class="action-bar-space"></div>
 
   <!-- 数据匹配校验弹窗：solve/matchCheck 接口查询到未匹配 APS 档案记录时展示 -->
+  <!-- 弹窗宽度以 rem 固定（1920 设计稿基准下约 960px）：随窗口等比缩放，浏览器 Ctrl+滚轮缩放时视觉宽度保持稳定 -->
   <el-dialog
     v-model="matchCheckVisible"
     title="数据匹配校验"
-    width="960px"
+    width="54.33rem"
     align-center
     destroy-on-close
     class="data-match-check-dialog"
@@ -321,20 +307,21 @@
         border
         :row-class-name="matchRowClassName"
       >
-        <el-table-column prop="inventoryName" label="存货名称" min-width="200" show-overflow-tooltip>
+        <!-- 列不设固定 min-width：由表格按弹窗实际宽度自适应分配，保证浏览器缩放时表格始终填满弹窗、不出现横向溢出 -->
+        <el-table-column prop="inventoryName" label="存货名称" show-overflow-tooltip>
           <template #default="{ row }">
             <!-- 占位行：渲染隐藏占位符撑起与普通行一致的行高 -->
             <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
             <span v-else>{{ row.inventoryName }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="specification" label="规格" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="specification" label="规格" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
             <span v-else>{{ row.specification }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reason" label="未匹配原因" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="reason" label="未匹配原因" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row._isPlaceholder" class="cell-placeholder">-</span>
             <span v-else>{{ row.reason }}</span>
@@ -355,11 +342,7 @@
           <!-- 页面跳转：跳转至 x 页 按钮 -->
           <div class="match-jump-box">
             <span class="jump-label">跳转至</span>
-            <el-input
-              v-model="matchJumpPage"
-              class="jump-input"
-              @keyup.enter="handleMatchJump"
-            />
+            <el-input v-model="matchJumpPage" class="jump-input" @keyup.enter="handleMatchJump" />
             <span class="jump-label">页</span>
             <el-button class="jump-btn" @click="handleMatchJump">跳转</el-button>
           </div>
@@ -369,9 +352,7 @@
     <template #footer>
       <div class="match-check-footer">
         <el-button @click="closeMatchCheckDialog">取消求解</el-button>
-        <el-button @click="handleContinueSolveSkip">
-          继续求解（跳过缺失项）
-        </el-button>
+        <el-button @click="handleContinueSolveSkip"> 继续求解（跳过缺失项） </el-button>
         <el-button type="primary" @click="handleGoToApsArchive">前往APS排产信息档案</el-button>
       </div>
     </template>
@@ -418,4 +399,216 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
 
 <style lang="less" scoped>
 @import './modelBuild.less';
+</style>
+
+<!-- 数据匹配校验弹窗经 teleport 渲染到 body，scoped 样式编译出的 [data-v] 祖先选择器无法命中其内部结构，
+     因此弹窗相关样式必须放在非 scoped 块中（与项目 DataUpload.vue 弹窗写法保持一致）。
+     data-match-check-dialog 类前缀保证全局唯一，不影响其他页面。 -->
+<style lang="less">
+.data-match-check-dialog {
+  .el-dialog__header {
+    padding: 16px 20px;
+    margin-right: 0;
+    border-bottom: 1px solid #ebeef5;
+  }
+
+  .el-dialog__title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  // 右上角关闭按钮（叉号）：尺寸以 rem 固定（此处 px 会被 pxtorem 转为 rem），
+  // 与弹窗一起随窗口等比缩放，浏览器 Ctrl+滚轮缩放时视觉尺寸保持稳定
+  .el-dialog__headerbtn {
+    width: 48px;
+    height: 48px;
+    font-size: 16px;
+
+    .el-dialog__close {
+      font-size: inherit;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 20px;
+  }
+
+  .el-dialog__footer {
+    padding: 12px 20px;
+    border-top: 1px solid #ebeef5;
+  }
+
+  .match-check-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .match-check-tips {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background-color: #fffaf0;
+    border-radius: 6px;
+    border: 1px solid #ffe4b3;
+  }
+
+  .match-check-icon {
+    flex-shrink: 0;
+    font-size: 20px;
+    color: #e6a23c;
+    margin-top: 2px;
+  }
+
+  .match-check-text {
+    font-size: 14px;
+    color: #606266;
+    line-height: 1.6;
+  }
+
+  .match-check-count {
+    font-size: 14px;
+    color: #606266;
+
+    .count-num {
+      color: #f56c6c;
+      font-weight: 600;
+    }
+  }
+
+  .match-check-table {
+    .el-table__header th {
+      background-color: #f5f7fa;
+      color: #303133;
+      font-weight: 600;
+    }
+
+    // 占位符：内容（"-"）占据正常行高，文字颜色透明不可见
+    .cell-placeholder {
+      display: block;
+      color: transparent;
+    }
+
+    // 占位行：占位符内容保留行高但整体不可见，保证占位行与普通行等高
+    .row-placeholder {
+      .cell-placeholder {
+        visibility: hidden;
+      }
+      td {
+        background: transparent !important;
+      }
+    }
+  }
+
+  // 分页区（参考任务数据页表格形态）：左下角总条数 + 右侧分页与页面跳转
+  .match-pagination-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    gap: 12px;
+
+    .match-total-count {
+      font-size: 14px;
+      color: #606266;
+    }
+
+    .match-pagination-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    // 页面跳转：跳转至 x 页 按钮
+    .match-jump-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .jump-label {
+        font-size: 14px;
+        color: #606266;
+        white-space: nowrap;
+      }
+
+      .jump-input {
+        width: 48px;
+
+        .el-input__wrapper {
+          height: 32px;
+          border-radius: 4px;
+          padding: 0 8px;
+        }
+      }
+
+      .jump-btn {
+        height: 32px;
+        padding: 0 14px;
+        font-size: 14px;
+        border-radius: 4px;
+        color: #606266;
+        border: 1px solid #dcdfe6;
+        background: #fff;
+
+        &:hover {
+          color: #1c4b8e;
+          border-color: #004aa9;
+          background-color: #fff;
+        }
+      }
+    }
+
+    // 方形带边框分页按钮
+    .el-pagination button,
+    .el-pagination .el-pager li {
+      border: 1px solid #dcdfe6;
+      background: #fff;
+      border-radius: 4px;
+      min-width: 32px;
+      height: 32px;
+      line-height: 30px;
+      font-weight: normal;
+      color: #606266;
+      margin: 0 4px;
+
+      &.is-active {
+        color: #fff;
+        background-color: #004aa9;
+        border-color: #004aa9;
+      }
+
+      &:hover {
+        color: #004aa9;
+        border-color: #004aa9;
+      }
+
+      &.is-active:hover {
+        color: #fff;
+        background-color: #1c4b8e;
+        border-color: #1c4b8e;
+      }
+    }
+
+    .el-pagination .el-pager {
+      gap: 0;
+    }
+
+    .el-pagination {
+      gap: 4px;
+    }
+  }
+
+  .match-check-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .el-button {
+      height: 36px;
+      padding: 0 20px;
+    }
+  }
+}
 </style>
