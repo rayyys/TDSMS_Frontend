@@ -13,7 +13,8 @@
     <div class="aps-data-toolbar">
       <div class="aps-toolbar-left">
         <span class="aps-selection-info">
-          已选择<em>{{ planState.selectedRows.length }}</em>行
+          已选择<em>{{ planState.selectedRows.length }}</em
+          >行
         </span>
         <el-button
           class="aps-btn-batch-del"
@@ -150,7 +151,9 @@
                         <template v-if="col.key === 'selection'"></template>
                         <template v-else-if="col.key === 'actions'"></template>
                         <template v-else-if="col.group">
-                          <template v-if="col.subtitle">{{ col.title }}<br />{{ col.subtitle }}</template>
+                          <template v-if="col.subtitle"
+                            >{{ col.title }}<br />{{ col.subtitle }}</template
+                          >
                           <template v-else>{{ col.title }}</template>
                         </template>
                       </div>
@@ -172,9 +175,9 @@
         @click="onTrackClick"
         @wheel.prevent="onHScrollWheel"
       > -->
-        <!-- 拖拽滑块暂时注释掉（轨道点击 / 滚轮滚动仍可用） -->
-        <!-- <div class="aps-table-hscroll-thumb" ref="thumbRef" @mousedown.prevent="onThumbDown"></div> -->
-      <!-- </div>
+    <!-- 拖拽滑块暂时注释掉（轨道点击 / 滚轮滚动仍可用） -->
+    <!-- <div class="aps-table-hscroll-thumb" ref="thumbRef" @mousedown.prevent="onThumbDown"></div> -->
+    <!-- </div>
     </div> -->
 
     <!-- 底部操作栏 -->
@@ -184,7 +187,13 @@
       </el-button>
       <div class="aps-footer-right">
         <el-button class="aps-btn-export" plain @click="onExportTable">导出表格</el-button>
-        <el-button class="aps-btn-save" type="primary" :loading="planState.saving" @click="onSaveTable">保存</el-button>
+        <el-button
+          class="aps-btn-save"
+          type="primary"
+          :loading="planState.saving"
+          @click="onSaveTable"
+          >保存</el-button
+        >
       </div>
     </div>
   </div>
@@ -197,14 +206,18 @@ import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import ApsOverflowText from './ApsOverflowText.vue'
 
 const props = defineProps({
-  planState: {
-    type: Object,
-    required: true,
-  },
   filteredTableData: {
     type: Array,
     required: true,
   },
+})
+
+// planState 改为 v-model 双向绑定（defineModel）：
+// 父组件通过 v-model:plan-state 传入共享响应式状态，子组件直接修改其嵌套属性即合法，
+// 不再触发 vue/no-mutating-props；模板中 planState 为 ref 会自动解包，用法保持不变
+const planState = defineModel('plan-state', {
+  type: Object,
+  required: true,
 })
 
 const emit = defineEmits([
@@ -328,9 +341,7 @@ function isGroupStartCol(columns, idx) {
 
 // 计算某列所在分组的列宽之和（用于第一行合并单元格宽度）
 function groupWidth(columns, col) {
-  return columns
-    .filter((c) => c.group === col.group)
-    .reduce((sum, c) => sum + c.width, 0)
+  return columns.filter((c) => c.group === col.group).reduce((sum, c) => sum + c.width, 0)
 }
 
 const tableV2Ref = ref(null)
@@ -340,7 +351,7 @@ const thumbRef = ref(null)
 
 // 判断某行是否为当前可编辑行（同时仅一行可编辑，失焦不清空）
 function isRowEditable(row) {
-  return row === props.planState.editingRow
+  return row === planState.value.editingRow
 }
 
 // 可编辑行应用特殊 class，用于深蓝色外边框高亮标识（作用于所有视口的行）
@@ -351,12 +362,12 @@ function rowClassName({ rowData }) {
 // ================== 区块式选择 ==================
 // 勾选态由选中集合派生：判断某行是否处于选中集合中
 function isRowSelected(row) {
-  return props.planState.selectedRows.includes(row)
+  return planState.value.selectedRows.includes(row)
 }
 
 // 计算某行所在品种的连续区块：从该行向前后扩展，收集连续且品种相同的行
 function findProductBlock(row) {
-  const rows = props.planState.tableData || []
+  const rows = planState.value.tableData || []
   const idx = rows.indexOf(row)
   if (idx === -1) return []
   const product = row?.product
@@ -369,7 +380,7 @@ function findProductBlock(row) {
 // 点击行勾选框：整块已选中则从选中集合中移除该品种区块；否则将当前品种区块并入选中集合
 // 支持同时选择多个品类：合并而非替换，保留其它已选品种
 function onToggleBlock(row) {
-  const state = props.planState
+  const state = planState.value
   const block = findProductBlock(row)
   if (!block.length) return
   const allSelected = block.every((r) => state.selectedRows.includes(r))
@@ -386,20 +397,20 @@ function onToggleBlock(row) {
 // 表头全选态：当前数据全部选中时为 true
 const isAllSelected = computed(() => {
   const rows = props.filteredTableData || []
-  return rows.length > 0 && rows.every((r) => props.planState.selectedRows.includes(r))
+  return rows.length > 0 && rows.every((r) => planState.value.selectedRows.includes(r))
 })
 
 // 表头半选态：部分行选中时显示半选样式
 const isIndeterminate = computed(() => {
   const rows = props.filteredTableData || []
   if (!rows.length) return false
-  const selectedCount = rows.filter((r) => props.planState.selectedRows.includes(r)).length
+  const selectedCount = rows.filter((r) => planState.value.selectedRows.includes(r)).length
   return selectedCount > 0 && selectedCount < rows.length
 })
 
 // 表头全选/取消全选：选中全部数据行，或清空选中
 function onToggleAll() {
-  const state = props.planState
+  const state = planState.value
   if (isAllSelected.value) {
     state.selectedRows = []
   } else {
@@ -533,7 +544,7 @@ onBeforeUnmount(() => {
 
 // 搜索条件变化后，虚拟表格回到顶部查看搜索结果
 watch(
-  () => props.planState.searchQuery,
+  () => planState.value.searchQuery,
   () => {
     tableV2Ref.value?.scrollToTop()
   },
@@ -549,7 +560,7 @@ watch(
 
 // 保存排序后，滚动定位到新增行
 watch(
-  () => props.planState.scrollToRow,
+  () => planState.value.scrollToRow,
   (target) => {
     if (!target) return
     const index = props.filteredTableData.indexOf(target)
@@ -557,7 +568,7 @@ watch(
       tableV2Ref.value?.scrollToRow(index, 'auto')
     }
     // 定位完成后清除标记，避免重复触发
-    props.planState.scrollToRow = null
+    planState.value.scrollToRow = null
   },
   { immediate: false },
 )
@@ -687,7 +698,7 @@ function onClickImport() {
   .aps-data-table-wrap {
     flex: 1;
     min-height: 0;
-    padding: 12px 12px 76px;
+    padding: 12px 12px 50px;
     box-sizing: border-box;
 
     // 自适应表格容器：填满外层容器，虚拟表格在其中滚动

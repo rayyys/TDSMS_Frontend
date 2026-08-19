@@ -190,7 +190,7 @@ export function useModelSolve() {
           schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
         }
         schedulingStore.stopSolve()
-        ElMessage.warning('已停止，当前无可行解，不可导出')
+        // ElMessage.warning('已停止，当前无可行解，不可导出')
         return
       }
 
@@ -281,7 +281,7 @@ export function useModelSolve() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `排产结果-${schedulingStore.fileName || '未知文件'}`
+      a.download = `可排产结果可视化-${schedulingStore.fileName}`
       a.click()
       URL.revokeObjectURL(url)
       ElMessage.success('文件导出成功')

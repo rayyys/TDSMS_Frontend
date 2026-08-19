@@ -3,9 +3,7 @@
     <!-- 页面标题与说明 -->
     <div class="page-header">
       <h2 class="page-title">APS排产信息档案</h2>
-      <p class="page-desc">
-        维护药品生产工艺与产能基础信息，作为排程算法的输入依据
-      </p>
+      <p class="page-desc">维护药品生产工艺与产能基础信息，作为排程算法的输入依据</p>
     </div>
 
     <!-- 主体内容：左侧方案列表面板 + 右侧方案详情/编辑区 -->
@@ -62,7 +60,7 @@
         <!-- 已上传状态：显示数据面板（工具栏 + 表格 + 底部操作） -->
         <ApsDataPanel
           v-else
-          :plan-state="planState"
+          v-model:plan-state="planState"
           :filtered-table-data="filteredTableData"
           @cancel-selection="onCancelSelection"
           @batch-delete="onBatchDelete"
