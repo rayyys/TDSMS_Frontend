@@ -27,7 +27,10 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   >
-                    <polyline class="pulse-line" points="2 12 6 12 9 3 15 21 18 12 22 12"></polyline>
+                    <polyline
+                      class="pulse-line"
+                      points="2 12 6 12 9 3 15 21 18 12 22 12"
+                    ></polyline>
                   </svg>
                   <!-- 已停止：空心方块 -->
                   <svg
@@ -53,7 +56,10 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   >
-                    <polyline class="pulse-line" points="2 12 6 12 9 3 15 21 18 12 22 12"></polyline>
+                    <polyline
+                      class="pulse-line"
+                      points="2 12 6 12 9 3 15 21 18 12 22 12"
+                    ></polyline>
                   </svg>
                 </div>
                 <div class="status-text-block">
@@ -135,79 +141,79 @@
           <div class="custom-card config-card">
             <div class="card-header">参数配置概览</div>
 
-          <!-- 1. 排产时间设置 -->
-          <div class="config-section">
-            <div class="config-section-title">
-              <span class="section-num">1</span>
-              <span>排产时间设置</span>
-            </div>
-            <div class="config-list">
-              <div class="config-item">
-                <span class="config-label">排产月份：</span>
-                <span class="config-value">{{ productionMonth }}</span>
+            <!-- 1. 排产时间设置 -->
+            <div class="config-section">
+              <div class="config-section-title">
+                <span class="section-num">1</span>
+                <span>排产时间设置</span>
+              </div>
+              <div class="config-list">
+                <div class="config-item">
+                  <span class="config-label">排产月份：</span>
+                  <span class="config-value">{{ productionMonth }}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- 2. 生产规则配置（默认展示值，仅用于参数概览，不参与业务计算） -->
-          <div class="config-section">
-            <div class="config-section-title">
-              <span class="section-num">2</span>
-              <span>生产规则配置</span>
+            <!-- 2. 生产规则配置（默认展示值，仅用于参数概览，不参与业务计算） -->
+            <div class="config-section">
+              <div class="config-section-title">
+                <span class="section-num">2</span>
+                <span>生产规则配置</span>
+              </div>
+              <div class="config-list">
+                <div class="config-item">
+                  <span class="config-label">连续运行上限：</span>
+                  <span class="config-value">5.5 天</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">大清场时长：</span>
+                  <span class="config-value">0.5 天</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">小清场时长：</span>
+                  <span class="config-value">0.25 天</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">定期清场时长：</span>
+                  <span class="config-value">0.5 天</span>
+                </div>
+              </div>
             </div>
-            <div class="config-list">
-              <div class="config-item">
-                <span class="config-label">连续运行上限：</span>
-                <span class="config-value">5.5 天</span>
-              </div>
-              <div class="config-item">
-                <span class="config-label">大清场时长：</span>
-                <span class="config-value">0.5 天</span>
-              </div>
-              <div class="config-item">
-                <span class="config-label">小清场时长：</span>
-                <span class="config-value">0.25 天</span>
-              </div>
-              <div class="config-item">
-                <span class="config-label">定期清场时长：</span>
-                <span class="config-value">0.5 天</span>
-              </div>
-            </div>
-          </div>
 
-          <!-- 3. 人员客量配置（默认展示值，仅用于参数概览，不参与业务计算） -->
-          <div class="config-section">
-            <div class="config-section-title">
-              <span class="section-num">3</span>
-              <span>人员客量配置</span>
-            </div>
-            <div class="config-list">
-              <div class="config-item config-item--column">
-                <span class="config-label">早班人员客量：</span>
-                <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span>
+            <!-- 3. 人员客量配置（默认展示值，仅用于参数概览，不参与业务计算） -->
+            <div class="config-section">
+              <div class="config-section-title">
+                <span class="section-num">3</span>
+                <span>人员容量配置</span>
               </div>
-              <div class="config-item config-item--column">
-                <span class="config-label">晚班人员客量：</span>
-                <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span>
+              <div class="config-list">
+                <div class="config-item config-item--column">
+                  <span class="config-label">人员容量：</span>
+                  <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span>
+                </div>
+                <div class="config-item config-item--column">
+                  <!-- <span class="config-label">晚班人员容量：</span> -->
+                  <!-- <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span> -->
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- 4. 算法求解时长配置 -->
-          <div class="config-section">
-            <div class="config-section-title">
-              <span class="section-num">4</span>
-              <span>算法求解时长配置</span>
-            </div>
-            <div class="config-list">
-              <div class="config-item">
-                <span class="config-label">最大求解时间：</span>
-                <span class="config-value">{{ maxSolveDurationText }}</span>
+            <!-- 4. 算法求解时长配置 -->
+            <div class="config-section">
+              <div class="config-section-title">
+                <span class="section-num">4</span>
+                <span>算法求解时长配置</span>
+              </div>
+              <div class="config-list">
+                <div class="config-item">
+                  <span class="config-label">最大求解时间：</span>
+                  <span class="config-value">{{ maxSolveDurationText }}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
 

@@ -198,6 +198,10 @@ export function useModelBuild() {
   // 进入模型构建页时自动重置排产时间默认值
   // 仅 idle（首次进入）和 done（已完成）时重置；stopped 保留用户设置以便二次修改
   onMounted(() => {
+    // 从 APS 排产信息档案页返回：apsOriginPath 记录了进入档案页前的工作流路径，
+    // 此时必须保留用户已填写的输入（部门/排产月份等），不重置、不强制清空
+    const isReturnFromAps = schedulingStore.apsOriginPath === router.currentRoute.value.path
+    if (isReturnFromAps) return
     if (schedulingStore.solveStatus === 'idle' || schedulingStore.solveStatus === 'done') {
       schedulingStore.resetScheduleDefaults()
       // 页面加载后立即校验：部门与排产月份初始状态必须为空
