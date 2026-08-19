@@ -8,6 +8,7 @@ import { loadApsDraftStates, saveApsDraftStates } from '@/utils/apsStorage'
 import {
   createApsArchive,
   createApsArchiveItem,
+  updateApsArchiveItem,
   batchDeleteApsArchiveItems,
   deleteApsArchive,
   exportApsArchive,
@@ -35,6 +36,8 @@ function createPlanState() {
     scrollToRow: null,
     // 当前处于可编辑状态的行（同时仅一行，null 表示无）
     editingRow: null,
+    // 编辑前各字段值的快照，用于「取消编辑」时恢复编辑前状态
+    editingBackup: null,
     // 原始上传文件对象（保存时上传给后端解析）
     rawFile: null,
     // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
@@ -135,8 +138,9 @@ function mapItemToRow(item) {
   }
   // 保留后端明细主键 itemId，供「单条精确删除」接口使用
   row.itemId = item?.itemId ?? null
-  // 注入唯一行 key（itemId 唯一则复用，否则退回自增序号）
-  row.__rowKey = item?.itemId != null ? `item-${item.itemId}` : `excel-${++rowSeq}`
+  // 注入唯一行 key（itemId 非空则复用，否则退回自增序号）
+  // row.itemId 已在上方通过 item?.itemId ?? null 归一化，非 null 即表示主键存在
+  row.__rowKey = row.itemId !== null ? `item-${row.itemId}` : `excel-${++rowSeq}`
   return row
 }
 
@@ -184,12 +188,47 @@ export function useApsArchive() {
     })
   })
 
-  // 下一个方案的序号
-  function nextPlanNo() {
-    return planList.value.length + 1
+  // 从方案名解析序号：兼容中文数字（方案一 ~ 方案十）与阿拉伯数字（方案11）两种命名
+  // 解析失败（如后端返回的"未命名方案"）返回 null，不参与编号占位
+  function parsePlanNo(name) {
+    if (!name) return null
+    const text = String(name)
+    // 优先匹配末尾的阿拉伯数字（方案11 / 方案100）
+    const arabicMatch = text.match(/(\d+)$/)
+    if (arabicMatch) return Number(arabicMatch[1])
+    // 再匹配末尾的中文数字（方案一 ~ 方案十）
+    const chineseMap = {
+      一: 1,
+      二: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+      十: 10,
+    }
+    const chineseMatch = text.match(/([一二三四五六七八九十])$/)
+    // 用 ?? null 归一化后严格比较，等价于旧的 != null（同时排除 undefined）
+    if (chineseMatch && (chineseMap[chineseMatch[1]] ?? null) !== null) {
+      return chineseMap[chineseMatch[1]]
+    }
+    return null
   }
 
-  // 阿拉伯数字 → 中文数字（1 → 一）
+  // 计算下一个可用方案序号：从 1 开始递增，自动填补已删除方案留下的空缺编号
+  // 例如已有 方案一、方案三 时，新方案应命名为 方案二
+  function nextPlanNo() {
+    const usedNos = new Set(
+      planList.value.map((p) => parsePlanNo(p.name)).filter((n) => n !== null && n !== undefined),
+    )
+    let no = 1
+    while (usedNos.has(no)) no++
+    return no
+  }
+
+  // 阿拉伯数字 → 中文数字（1 → 一），大于 10 时直接使用阿拉伯数字
   function toChineseNum(n) {
     const map = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
     if (n <= 10) return map[n]
@@ -250,8 +289,9 @@ export function useApsArchive() {
   }
 
   // ================== 初始化数据加载 ==================
-  // 页面刷新时加载方案列表的 loading 态
-  const listLoading = ref(false)
+  // 右侧主区域的整体 loading 态：查询 /aps/infoQuery 期间整块区域进入 loading，
+  // 禁止用户点击（如导入表格、保存等），避免查询过程中并发上传导致数据混乱
+  const mainLoading = ref(false)
 
   // 加载指定方案的明细数据（GET /aps/infoQuery）
   // 已加载过的方案不重复请求，保留会话内的本地编辑
@@ -259,7 +299,8 @@ export function useApsArchive() {
     if (!isSavedArchive(plan)) return
     const state = ensurePlanState(plan.id)
     if (state.detailLoaded) return
-    state.tableLoading = true
+    // 查询期间右侧主区域整体 loading，屏蔽所有点击操作
+    mainLoading.value = true
     try {
       const res = await getApsArchiveItems({ archiveId: Number(plan.id) })
       const result = res?.data
@@ -274,7 +315,7 @@ export function useApsArchive() {
       state.uploadedFileName = `${plan.name}.xlsx`
       state.hasImported = true
       state.selectedRows = []
-      state.editingRow = null
+      clearEditingState(state)
       state.newRowIndex = null
       state.detailLoaded = true
     } catch (err) {
@@ -285,13 +326,13 @@ export function useApsArchive() {
         ElMessage.error(err?.response?.data?.message || err.message || '获取方案明细失败')
       }
     } finally {
-      state.tableLoading = false
+      mainLoading.value = false
     }
   }
 
   // 页面刷新时：从 store 拉取方案列表（含已持久化的本地草稿，刷新后不丢失），并对当前选中的方案加载明细
   async function loadPlanList() {
-    listLoading.value = true
+    mainLoading.value = true
     try {
       await apsStore.ensurePlanList()
       // 对应当前选中的方案加载其明细
@@ -300,7 +341,7 @@ export function useApsArchive() {
         await loadPlanDetail(activePlan)
       }
     } finally {
-      listLoading.value = false
+      mainLoading.value = false
     }
   }
 
@@ -457,11 +498,28 @@ export function useApsArchive() {
 
   // 表格行数据字段键列表（用于统一清理首尾空白）
   const TABLE_FIELD_KEYS = [
-    'product', 'packageSpec', 'dispensingLine', 'batchQty', 'shiftOutput',
-    'dispensingStaff', 'pressMachine', 'pressOutput', 'pressStaff',
-    'coatingMachine', 'coatingOutput', 'coatingStaff', 'fillingEquip',
-    'fillingOutput', 'fillingStaff', 'packingEquip', 'packingOutput',
-    'manualOutput', 'packingStaff', 'cycleDays', 'isProcurement', 'annualSales',
+    'product',
+    'packageSpec',
+    'dispensingLine',
+    'batchQty',
+    'shiftOutput',
+    'dispensingStaff',
+    'pressMachine',
+    'pressOutput',
+    'pressStaff',
+    'coatingMachine',
+    'coatingOutput',
+    'coatingStaff',
+    'fillingEquip',
+    'fillingOutput',
+    'fillingStaff',
+    'packingEquip',
+    'packingOutput',
+    'manualOutput',
+    'packingStaff',
+    'cycleDays',
+    'isProcurement',
+    'annualSales',
   ]
 
   // 去除一行所有字段值左右两侧的空白，避免 Excel 或手动输入带多余空格
@@ -478,25 +536,85 @@ export function useApsArchive() {
   // ================== 本地数据重建 Excel（刷新后原始文件丢失的兜底） ==================
   // 表格字段 → 模板数据列 的列序（与 parseApsSheetToRows 中的下标一一对应）
   const ROW_TO_APS_COLUMNS = [
-    'product', 'packageSpec', 'dispensingLine', 'batchQty', 'shiftOutput',
-    'dispensingStaff', 'pressMachine', 'pressOutput', 'pressStaff',
-    'coatingMachine', 'coatingOutput', 'coatingStaff', 'fillingEquip',
-    'fillingOutput', 'fillingStaff', 'packingEquip', 'packingOutput',
-    'manualOutput', 'packingStaff', 'cycleDays', 'isProcurement', 'annualSales',
+    'product',
+    'packageSpec',
+    'dispensingLine',
+    'batchQty',
+    'shiftOutput',
+    'dispensingStaff',
+    'pressMachine',
+    'pressOutput',
+    'pressStaff',
+    'coatingMachine',
+    'coatingOutput',
+    'coatingStaff',
+    'fillingEquip',
+    'fillingOutput',
+    'fillingStaff',
+    'packingEquip',
+    'packingOutput',
+    'manualOutput',
+    'packingStaff',
+    'cycleDays',
+    'isProcurement',
+    'annualSales',
   ]
   // 模板首行（合并组表头）与次行（字段表头），与 docs/APS排产信息.xlsx 保持一致
   const APS_HEADER_ROW1 = [
-    '品种', '包装规格', '配料', '', '', '', '压片', '', '', '包衣', '', '',
-    '分装/铝塑', '', '', '包装', '', '', '', '生产周期/天', '是否集采品种', '年销量/万',
+    '品种',
+    '包装规格',
+    '配料',
+    '',
+    '',
+    '',
+    '压片',
+    '',
+    '',
+    '包衣',
+    '',
+    '',
+    '分装/铝塑',
+    '',
+    '',
+    '包装',
+    '',
+    '',
+    '',
+    '生产周期/天',
+    '是否集采品种',
+    '年销量/万',
   ]
   const APS_HEADER_ROW2 = [
-    '', '', '配料线体', '批量（万片/粒）', '班产量（万片）', '用人', '压片机', '班产量',
-    '用人', '包衣机', '班产量', '用人', '操作间及设备', '班产量（万片）', '用人',
-    '操作间及设备', '班产量（万片）', '手工包装（1人产量）', '用人', '', '', '',
+    '',
+    '',
+    '配料线体',
+    '批量（万片/粒）',
+    '班产量（万片）',
+    '用人',
+    '压片机',
+    '班产量',
+    '用人',
+    '包衣机',
+    '班产量',
+    '用人',
+    '操作间及设备',
+    '班产量（万片）',
+    '用人',
+    '操作间及设备',
+    '班产量（万片）',
+    '手工包装（1人产量）',
+    '用人',
+    '',
+    '',
+    '',
   ]
   // 首行组表头的横向合并区间（起始列 → 结束列）
   const APS_HEADER_MERGES = [
-    [2, 5], [6, 8], [9, 11], [12, 14], [15, 18],
+    [2, 5],
+    [6, 8],
+    [9, 11],
+    [12, 14],
+    [15, 18],
   ]
   // 首行与次行跨行纵向合并的列（品种/包装规格/生产周期/集采/年销量）
   const APS_HEADER_VERTICAL_MERGES = [0, 1, 19, 20, 21]
@@ -602,7 +720,7 @@ export function useApsArchive() {
       state.selectedRows = []
       // 若被删行正是可编辑行，则清空可编辑状态
       if (state.editingRow && !state.tableData.includes(state.editingRow)) {
-        state.editingRow = null
+        clearEditingState(state)
       }
       ElMessage.success('已删除')
     } catch {
@@ -618,13 +736,18 @@ export function useApsArchive() {
   // 新增空行
   function onAddRow() {
     const state = planState.value
+    // 若已有其他行处于编辑状态，先恢复其编辑前快照，避免切换导致未保存修改丢失
+    if (state.editingRow && state.editingBackup) {
+      restoreRowFromSnapshot(state.editingRow, state.editingBackup)
+    }
     // _isNewRow 标记新增行，保存时据此调用「新增 APS 明细」接口逐行入库
     const newRow = { _isNewRow: true, __rowKey: `new-${++rowSeq}` }
     state.tableData.push(newRow)
     // 记录新增行下标，供保存时定位该行进行品种校验
     state.newRowIndex = state.tableData.length - 1
-    // 新增行即刻进入可编辑状态（替换原可编辑行，保证仅一行）
+    // 新增行即刻进入可编辑状态（替换原可编辑行，保证仅一行），并记录空快照以便取消时清空
     state.editingRow = newRow
+    state.editingBackup = snapshotRow(newRow)
     ElMessage.success('已新增数据行')
   }
 
@@ -670,6 +793,13 @@ export function useApsArchive() {
       return
     }
 
+    // 已保存的方案且未重新导入文件：数据已存在于后端，无需再走上传创建流程，
+    // 直接给出明确提示，避免误触发「请先上传 Excel 文件」
+    if (isSavedArchive(activePlan) && !state.rawFile) {
+      ElMessage.info('当前方案数据已保存，无需重复保存')
+      return
+    }
+
     // 场景二：首次保存 → 上传 Excel 文件给后端解析，创建 APS 方案
     // 校验：必须有可上传的文件。草稿方案在刷新/切换页面后原始 File 对象会丢失，
     // 此时本地仍保留已解析的表格数据，按模板结构重建 Excel 后再上传，无需重复选择文件
@@ -679,10 +809,7 @@ export function useApsArchive() {
         ElMessage.warning('请先上传 Excel 文件')
         return
       }
-      state.rawFile = buildApsExcelFile(
-        state.tableData,
-        `${activePlan?.name || '未命名方案'}.xlsx`,
-      )
+      state.rawFile = buildApsExcelFile(state.tableData, `${activePlan?.name || '未命名方案'}.xlsx`)
     }
 
     // 获取当前方案名称作为 archiveName
@@ -722,11 +849,9 @@ export function useApsArchive() {
       }
       state.selectedRows = []
       state.newRowIndex = null
-      state.editingRow = null
+      clearEditingState(state)
 
-      ElMessage.success(
-        `保存成功，共导入 ${data.dataCount ?? state.tableData.length} 条数据`,
-      )
+      ElMessage.success(`保存成功，共导入 ${data.dataCount ?? state.tableData.length} 条数据`)
     } catch (err) {
       const status = err?.response?.status
       if (status === 400) {
@@ -777,7 +902,7 @@ export function useApsArchive() {
         row._isNewRow = false
       }
       state.newRowIndex = null
-      state.editingRow = null
+      clearEditingState(state)
       ElMessage.success(`保存成功，共新增 ${validRows.length} 条数据`)
     } catch (err) {
       const status = err?.response?.status
@@ -795,9 +920,96 @@ export function useApsArchive() {
   }
 
   // ================== 行操作 ==================
+  // 快照某行所有可编辑字段的值，用于「取消编辑」时恢复编辑前状态
+  function snapshotRow(row) {
+    const snap = {}
+    for (const key of TABLE_FIELD_KEYS) {
+      snap[key] = row[key] ?? ''
+    }
+    return snap
+  }
+
+  // 将快照恢复到指定行（覆盖编辑期间产生的改动）
+  function restoreRowFromSnapshot(row, snap) {
+    if (!row || !snap) return
+    for (const key of TABLE_FIELD_KEYS) {
+      row[key] = snap[key] ?? ''
+    }
+  }
+
+  // 退出编辑状态：清空当前编辑行与编辑前快照
+  function clearEditingState(state) {
+    state.editingRow = null
+    state.editingBackup = null
+  }
+
   function onEditRow(row) {
+    const state = planState.value
+    // 若已有其他行处于编辑状态，先恢复其编辑前快照，避免切换行导致未保存修改丢失
+    if (state.editingRow && state.editingRow !== row && state.editingBackup) {
+      restoreRowFromSnapshot(state.editingRow, state.editingBackup)
+    }
+    // 记录编辑前快照，取消编辑时据此恢复
+    state.editingBackup = snapshotRow(row)
     // 点击编辑按钮：该行进入可编辑状态（自动替换原可编辑行，保证仅一行）
-    planState.value.editingRow = row
+    state.editingRow = row
+  }
+
+  // 取消编辑：恢复编辑前状态并退出编辑（由失焦确认弹窗「是」触发）
+  function onCancelEdit() {
+    const state = planState.value
+    if (state.editingRow && state.editingBackup) {
+      restoreRowFromSnapshot(state.editingRow, state.editingBackup)
+    }
+    clearEditingState(state)
+  }
+
+  // 行编辑确认（对号按钮）：已保存的行调用「修改明细」接口，新增行沿用原保存流程
+  async function onConfirmRowEdit(row) {
+    const state = planState.value
+    if (state.saving) return
+    const activePlan = getActivePlan()
+
+    // 新增行（尚未入库、无 itemId）或草稿方案：没有可修改的后端记录，沿用原保存逻辑
+    if (!row?.itemId || !isSavedArchive(activePlan)) {
+      return onSaveTable()
+    }
+
+    state.saving = true
+    const loadingMsg = ElMessage({
+      message: '正在保存修改...',
+      type: 'info',
+      duration: 0,
+    })
+    try {
+      const res = await updateApsArchiveItem({
+        // 与新增明细一致的字段 + 明细主键 itemId
+        ...mapRowToItemPayload(row, activePlan.id),
+        itemId: row.itemId,
+      })
+      const result = res?.data
+      if (result?.success === false) {
+        ElMessage.error(result.message || '修改失败')
+        return
+      }
+      if (result?.code === 200) {
+        ElMessage.success('表格行修改成功')
+        // 修改成功后退出该行的编辑状态
+        clearEditingState(state)
+      }
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 400) {
+        ElMessage.error(err?.response?.data?.message || '修改失败，请检查数据填写是否完整')
+      } else if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '修改失败，请稍后重试')
+      }
+    } finally {
+      state.saving = false
+      loadingMsg.close()
+    }
   }
 
   // 精确删除单条明细：已保存的方案调用「按 itemId 删除」接口，再同步本地表格
@@ -830,7 +1042,7 @@ export function useApsArchive() {
       if (idx >= 0) state.tableData.splice(idx, 1)
       // 若被删行正是可编辑行，则清空可编辑状态
       if (state.editingRow && !state.tableData.includes(state.editingRow)) {
-        state.editingRow = null
+        clearEditingState(state)
       }
       // 同步从选中集合中移除该行
       state.selectedRows = state.selectedRows.filter((r) => r !== row)
@@ -846,7 +1058,7 @@ export function useApsArchive() {
     activePlanId,
     planState,
     filteredTableData,
-    listLoading,
+    mainLoading,
     onAddPlan,
     onSelectPlan,
     onDeletePlan,
@@ -866,6 +1078,8 @@ export function useApsArchive() {
     onSaveTable,
     // 行操作
     onEditRow,
+    onCancelEdit,
+    onConfirmRowEdit,
     onDeleteRow,
   }
 }

@@ -92,6 +92,21 @@ export function createApsArchiveItem(data) {
 }
 
 /**
+ * 修改 APS 明细（行编辑状态点击对号按钮确认时调用）
+ * POST /aps/itemUpdate
+ * 参数与新增明细基本一致，额外多传明细主键 itemId
+ * @param {Object} data { itemId, archiveId, productName, packageSpecification, ... }
+ * @returns {Promise} data: { success, code, message, data }
+ */
+export function updateApsArchiveItem(data) {
+  return request({
+    method: 'post',
+    url: '/aps/itemUpdate',
+    data,
+  })
+}
+
+/**
  * 删除 APS 明细（支持「按品种批量删除」与「单条精确删除」两种模式，软删除）
  * POST /aps/itemDelete
  * - batchMode=true 时按品种软删除：productNames 传待删品种名列表，同一品种下所有未删除的

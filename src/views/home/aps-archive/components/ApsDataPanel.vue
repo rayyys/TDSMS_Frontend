@@ -95,7 +95,9 @@
                         link
                         class="row-action-btn row-action-edit"
                         :icon="isRowEditable(rowData) ? Check : Edit"
-                        @click="isRowEditable(rowData) ? onSaveTable() : onEditRow(rowData)"
+                        @click="
+                          isRowEditable(rowData) ? onConfirmRowEdit(rowData) : onEditRow(rowData)
+                        "
                       />
                       <el-button
                         link
@@ -111,6 +113,7 @@
                         v-model="rowData[column.key]"
                         class="aps-editable-cell"
                         placeholder=""
+                        @blur="onEditCellBlur"
                       />
                       <ApsOverflowText v-else :content="rowData[column.key]" />
                     </div>
@@ -200,8 +203,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { Plus, Upload, Edit, Delete, Search, Check } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
 import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import ApsOverflowText from './ApsOverflowText.vue'
 
@@ -228,9 +232,64 @@ const emit = defineEmits([
   'export-table',
   'save-table',
   'edit-row',
+  'cancel-edit',
+  'confirm-row-edit',
   'delete-row',
   'trigger-file-input',
 ])
+
+// ================== 编辑态失焦确认（取消编辑） ==================
+// 当某行处于编辑状态时，若用户点击其他位置使输入框失焦，弹出确认框：
+// 点击「是」恢复编辑前状态并退出编辑；点击「否」保持编辑状态。
+// 通过全局 pointerdown 捕获点击目标，区分「切换单元格/提交/删除」与「点击其他位置」，
+// 避免切换单元格或点击保存/删除按钮时误弹确认框。
+
+// 标记下一次 blur 是否应弹出「取消编辑」确认（仅当点击了非提交类区域时为 true）
+let editBlurShouldPrompt = false
+
+// 捕获全局点击：编辑行内输入框切换、行操作按钮、底部保存按钮、滚动条不弹确认，其余位置点击需确认
+function onDocPointerDown(e) {
+  const target = e.target
+  if (
+    target.closest?.('.aps-editable-cell') ||
+    target.closest?.('.aps-editing-row .row-actions') ||
+    target.closest?.('.aps-btn-save') ||
+    target.closest?.('.el-virtual-scrollbar') ||
+    target.closest?.('.el-scrollbar')
+  ) {
+    editBlurShouldPrompt = false
+  } else {
+    editBlurShouldPrompt = true
+  }
+}
+
+// 编辑单元格失焦：根据点击目标决定是否弹出「取消编辑」确认
+function onEditCellBlur(e) {
+  const shouldPrompt = editBlurShouldPrompt
+  editBlurShouldPrompt = false
+  const blurEl = e.target
+  // 编辑行因虚拟滚动被移出视口而卸载导致的失焦，不视为点击其他位置，不弹确认
+  if (!shouldPrompt || !planState.value.editingRow || !blurEl || !blurEl.isConnected) return
+  ElMessageBox.confirm('是否取消编辑，将恢复编辑前的状态', '取消编辑', {
+    type: 'warning',
+    confirmButtonText: '是',
+    cancelButtonText: '否',
+  })
+    .then(() => {
+      // 是：恢复编辑前状态并退出编辑
+      emit('cancel-edit')
+    })
+    .catch(() => {
+      // 否：继续保持编辑状态，焦点回到刚失焦的输入框便于继续输入
+      nextTick(() => {
+        blurEl?.focus?.()
+      })
+    })
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocPointerDown, true)
+})
 
 // 表格列配置：供 AdaptiveTableContainer 动态计算列宽（顺序与展示顺序一致）
 // width 为设计稿基准列宽，组件会根据容器宽度等比缩放；type 标记选择列/操作列
@@ -466,6 +525,8 @@ function syncHScroll() {
 function onV2Scroll({ scrollLeft }) {
   hScrollLeft.value = scrollLeft || 0
   syncHScroll()
+  // 滚动属于浏览行为，重置失焦确认标记，避免滚动引发的失焦误弹「取消编辑」
+  editBlurShouldPrompt = false
 }
 
 // 拖拽滚动条滑块：记录按下时相对滑块左边缘的偏移，保证从任意位置拖拽都跟手
@@ -540,6 +601,7 @@ function onColumnLayoutReady() {
 onBeforeUnmount(() => {
   document.removeEventListener('mousemove', onThumbMove)
   document.removeEventListener('mouseup', onThumbUp)
+  document.removeEventListener('pointerdown', onDocPointerDown, true)
 })
 
 // 搜索条件变化后，虚拟表格回到顶部查看搜索结果
@@ -610,6 +672,15 @@ function focusNewRowFirstCell() {
   firstInput?.focus()
 }
 
+// 聚焦当前编辑行第一个可编辑单元格（同一时刻仅一行处于编辑态，直接取首个 .aps-editable-cell）。
+// 进入编辑态必须先获得焦点，否则点击其他位置不会产生失焦事件，「取消编辑」确认框无法触发
+function focusEditingRowFirstCell() {
+  const el = tableV2Ref.value?.$el
+  if (!el) return
+  const firstInput = el.querySelector('.aps-editable-cell input')
+  firstInput?.focus()
+}
+
 function onExportTable() {
   emit('export-table')
 }
@@ -620,6 +691,14 @@ function onSaveTable() {
 
 function onEditRow(row) {
   emit('edit-row', row)
+  // 编辑态输入框渲染完成后自动聚焦，使点击其他位置产生失焦事件，「取消编辑」确认框才能触发
+  nextTick(() => {
+    setTimeout(focusEditingRowFirstCell, 100)
+  })
+}
+
+function onConfirmRowEdit(row) {
+  emit('confirm-row-edit', row)
 }
 
 function onDeleteRow(row) {
