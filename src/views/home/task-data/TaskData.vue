@@ -7,88 +7,81 @@
 
     <!-- 筛选区：部门 / 生产计划 / 存货名称 + 筛选/重置 + 搜索（独立盒子） -->
     <div class="filter-bar">
-        <div class="filter-fields">
-          <div class="filter-field">
-            <span class="filter-label">部门：</span>
-            <el-select
-              v-model="filterDepartment"
-              class="td-filter-select td-filter-select--dept"
-              placeholder="请选择部门"
-              multiple
-              collapse-tags
-              clearable
-              :loading="filterOptionsLoading"
-              popper-class="dept-select-popper"
-            >
-              <el-option
-                v-for="opt in departmentOptions"
-                :key="opt"
-                :label="opt"
-                :value="opt"
-              />
-            </el-select>
-          </div>
-
-          <div class="filter-field">
-            <span class="filter-label">生产计划：</span>
-            <el-select
-              v-model="filterProductionPlan"
-              class="td-filter-select td-filter-select--plan"
-              placeholder="请选择生产计划"
-              multiple
-              collapse-tags
-              clearable
-              :loading="filterOptionsLoading"
-              popper-class="dept-select-popper"
-            >
-              <el-option
-                v-for="opt in productionPlanOptions"
-                :key="opt.value"
-                :label="opt.label"
-                :value="opt.value"
-              />
-            </el-select>
-          </div>
-
-          <div class="filter-field">
-            <span class="filter-label">存货名称：</span>
-            <el-select
-              v-model="filterInventoryName"
-              class="td-filter-select td-filter-select--inventory"
-              placeholder="请选择存货名称"
-              multiple
-              collapse-tags
-              clearable
-              :loading="filterOptionsLoading"
-              popper-class="dept-select-popper"
-            >
-              <el-option
-                v-for="opt in inventoryOptions"
-                :key="opt"
-                :label="opt"
-                :value="opt"
-              />
-            </el-select>
-          </div>
-
-          <el-button class="btn-filter" type="primary" @click="handleFilter">筛选</el-button>
-          <el-button class="btn-reset" @click="handleReset">重置</el-button>
-        </div>
-
-        <div class="filter-search">
-          <el-input
-            v-model="keyword"
-            class="search-input"
-            placeholder="搜索关键词..."
+      <div class="filter-fields">
+        <div class="filter-field">
+          <span class="filter-label">部门：</span>
+          <el-select
+            v-model="filterDepartment"
+            class="td-filter-select td-filter-select--dept"
+            placeholder="请选择部门"
+            multiple
+            collapse-tags
             clearable
-            @keyup.enter="handleSearch"
-            @clear="handleSearch"
+            :loading="filterOptionsLoading"
+            popper-class="dept-select-popper"
+            @visible-change="handleFilterDropdownVisibleChange"
           >
-            <template #suffix>
-              <el-icon class="search-icon" @click="handleSearch"><Search /></el-icon>
-            </template>
-          </el-input>
+            <el-option v-for="opt in departmentOptions" :key="opt" :label="opt" :value="opt" />
+          </el-select>
         </div>
+
+        <div class="filter-field">
+          <span class="filter-label">生产计划：</span>
+          <el-select
+            v-model="filterProductionPlan"
+            class="td-filter-select td-filter-select--plan"
+            placeholder="请选择生产计划"
+            multiple
+            collapse-tags
+            clearable
+            :loading="filterOptionsLoading"
+            popper-class="dept-select-popper"
+            @visible-change="handleFilterDropdownVisibleChange"
+          >
+            <el-option
+              v-for="opt in productionPlanOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </div>
+
+        <div class="filter-field">
+          <span class="filter-label">存货名称：</span>
+          <el-select
+            v-model="filterInventoryName"
+            class="td-filter-select td-filter-select--inventory"
+            placeholder="请选择存货名称"
+            multiple
+            collapse-tags
+            clearable
+            :loading="filterOptionsLoading"
+            popper-class="dept-select-popper"
+            @visible-change="handleFilterDropdownVisibleChange"
+          >
+            <el-option v-for="opt in inventoryOptions" :key="opt" :label="opt" :value="opt" />
+          </el-select>
+        </div>
+
+        <el-button class="btn-filter" type="primary" @click="handleFilter">筛选</el-button>
+        <el-button class="btn-reset" @click="handleReset">重置</el-button>
+      </div>
+
+      <div class="filter-search">
+        <el-input
+          v-model="keyword"
+          class="search-input"
+          placeholder="搜索关键词..."
+          clearable
+          @keyup.enter="handleSearch"
+          @clear="handleSearch"
+        >
+          <template #suffix>
+            <el-icon class="search-icon" @click="handleSearch"><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
     </div>
 
     <div class="main-card">
@@ -142,17 +135,12 @@
           <!-- 页面跳转：跳转至 x 页 按钮 -->
           <div class="jump-box">
             <span class="jump-label">跳转至</span>
-            <el-input
-              v-model="jumpPage"
-              class="jump-input"
-              @keyup.enter="handleJump"
-            />
+            <el-input v-model="jumpPage" class="jump-input" @keyup.enter="handleJump" />
             <span class="jump-label">页</span>
             <el-button class="jump-btn" @click="handleJump">跳转</el-button>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
@@ -188,6 +176,7 @@ const {
   inventoryOptions,
   productionPlanOptions,
   filterOptionsLoading,
+  handleFilterDropdownVisibleChange,
   // 搜索 / 翻页
   keyword,
   currentPage,
@@ -241,13 +230,15 @@ async function handleNext() {
       border: 1px solid #c0c4cc;
       border-radius: 2px;
       background-color: #fff;
-      transition: background-color 0.15s, border-color 0.15s;
+      transition:
+        background-color 0.15s,
+        border-color 0.15s;
     }
 
     // 选中：填充主题色并显示白色对勾
     &.is-selected::before {
-      border-color: #1769E8;
-      background-color: #1769E8;
+      border-color: #1769e8;
+      background-color: #1769e8;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4L19 7'/%3E%3C/svg%3E");
       background-size: 10px;
       background-position: center;

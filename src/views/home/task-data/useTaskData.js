@@ -108,10 +108,14 @@ export function useTaskData() {
 
   // 导出给模板的选项：优先用后端数据，为空时回退到本地提取值
   const departmentOptions = computed(() =>
-    remoteDepartmentOptions.value.length > 0 ? remoteDepartmentOptions.value : localDepartmentOptions.value,
+    remoteDepartmentOptions.value.length > 0
+      ? remoteDepartmentOptions.value
+      : localDepartmentOptions.value,
   )
   const inventoryOptions = computed(() =>
-    remoteInventoryOptions.value.length > 0 ? remoteInventoryOptions.value : localInventoryOptions.value,
+    remoteInventoryOptions.value.length > 0
+      ? remoteInventoryOptions.value
+      : localInventoryOptions.value,
   )
   const productionPlanOptions = computed(() =>
     remoteProductionPlanOptions.value.map((p) => ({ value: p, label: p })),
@@ -175,13 +179,12 @@ export function useTaskData() {
     { immediate: true },
   )
 
-  // 已选筛选值变化时联动重新拉取选项（请求体携带当前已选值，后端据此过滤可用选项），
-  // 用防抖合并多选连点，避免频繁触发请求
-  let optionsFetchTimer = null
-  watch([filterDepartment, filterProductionPlan, filterInventoryName], () => {
-    clearTimeout(optionsFetchTimer)
-    optionsFetchTimer = setTimeout(() => fetchFilterOptions(), 300)
-  })
+  // 下拉框展开时重新拉取选项
+  // 勾选当前下拉框内的选项不再触发请求；仅当打开某个下拉框时才携带当前已选值，
+  // 向后端联动刷新各下拉框的可用选项（请求体带当前已选筛选值，后端据此过滤）
+  function handleFilterDropdownVisibleChange(visible) {
+    if (visible) fetchFilterOptions()
+  }
 
   // —— 展示数据 ——
   // 筛选 / 搜索均由后端 /task/detailQuery 处理（点击「筛选」或「搜索」才发起请求），
@@ -373,6 +376,7 @@ export function useTaskData() {
     inventoryOptions,
     productionPlanOptions,
     filterOptionsLoading,
+    handleFilterDropdownVisibleChange,
     // 搜索 / 翻页
     keyword,
     currentPage,
