@@ -17,10 +17,9 @@
           {{
             planState.uploadedFileName
               ? `已上传：${planState.uploadedFileName}（点击重新上传）`
-              : '点击此处上传文件'
+              : '点击或拖拽文件到此处上传'
           }}
         </span>
-
       </div>
 
       <el-button
@@ -45,6 +44,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 // 上传云端示意图
 import uploadCloudImg from '@/img/zw_上传云端.png'
@@ -54,23 +54,20 @@ defineProps({
     type: Object,
     required: true,
   },
-  uploadDragOver: {
-    type: Boolean,
-    default: false,
-  },
 })
 
 const emit = defineEmits(['trigger-file-input', 'file-drop', 'download-template'])
+
+// 拖拽高亮仅为本组件内部 UI 状态，使用局部 ref 避免直接修改 prop
+const uploadDragOver = ref(false)
 
 function triggerFileInput() {
   emit('trigger-file-input')
 }
 
-function onFileChange(e) {
-  emit('file-change', e)
-}
-
 function onFileDrop(e) {
+  // 拖放结束后复位拖拽高亮状态
+  uploadDragOver.value = false
   emit('file-drop', e)
 }
 
@@ -92,7 +89,7 @@ function onDownloadTemplate() {
   padding: 20px 24px;
   box-sizing: border-box;
   min-height: 220px;
-  border: 2px solid #B6D1FF;
+  border: 2px solid #b6d1ff;
 
   .aps-import-card-left {
     flex: 1;
@@ -126,7 +123,9 @@ function onDownloadTemplate() {
     color: @brand-primary;
     font-size: 14px;
     background: #fff;
-    transition: border-color 0.2s, background 0.2s;
+    transition:
+      border-color 0.2s,
+      background 0.2s;
 
     &:hover,
     &.is-dragover {
@@ -149,7 +148,7 @@ function onDownloadTemplate() {
     .aps-import-upload-text {
       font-weight: 500;
     }
-    }
+  }
 
   .aps-btn-download-template {
     width: 100%;

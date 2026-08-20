@@ -47,7 +47,6 @@
         <template v-else-if="!planState.hasImported">
           <ApsImportCard
             :plan-state="planState"
-            :upload-drag-over="uploadDragOver"
             @trigger-file-input="triggerFileInput"
             @file-drop="onFileDrop"
             @download-template="onDownloadTemplate"
@@ -108,7 +107,6 @@ const {
   onSelectPlan,
   onDeletePlan,
   // Excel 上传与解析
-  uploadDragOver,
   fileInputRef,
   triggerFileInput,
   onFileChange,

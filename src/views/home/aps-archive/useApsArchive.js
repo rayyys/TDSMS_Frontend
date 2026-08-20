@@ -401,7 +401,6 @@ export function useApsArchive() {
   )
 
   // ================== Excel 上传与解析 ==================
-  const uploadDragOver = ref(false)
   const fileInputRef = ref(null)
 
   function triggerFileInput() {
@@ -417,7 +416,6 @@ export function useApsArchive() {
   }
 
   function onFileDrop(e) {
-    uploadDragOver.value = false
     const file = e.dataTransfer?.files?.[0]
     if (!file) return
     handleSelectedFile(file)
@@ -1063,7 +1061,6 @@ export function useApsArchive() {
     onSelectPlan,
     onDeletePlan,
     // Excel 上传与解析
-    uploadDragOver,
     fileInputRef,
     triggerFileInput,
     onFileChange,
