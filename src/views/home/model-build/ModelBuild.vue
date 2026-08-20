@@ -463,13 +463,13 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
   }
 
   .match-check-text {
-    font-size: 14px;
+    font-size: 1rem;
     color: #606266;
     line-height: 1.6;
   }
 
   .match-check-count {
-    font-size: 14px;
+    font-size: 1rem;
     color: #606266;
 
     .count-num {
@@ -511,7 +511,7 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
     gap: 12px;
 
     .match-total-count {
-      font-size: 14px;
+      font-size: 1rem;
       color: #606266;
     }
 
@@ -528,7 +528,7 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
       gap: 6px;
 
       .jump-label {
-        font-size: 14px;
+        font-size: 1rem;
         color: #606266;
         white-space: nowrap;
       }
@@ -551,7 +551,7 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
       .jump-btn {
         height: 32px;
         padding: 0 14px;
-        font-size: 14px;
+        font-size: 1rem;
         border-radius: 4px;
         color: #606266;
         border: 1px solid #dcdfe6;

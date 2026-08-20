@@ -176,6 +176,19 @@ export function useApsArchive() {
     return ensurePlanState(activePlanId.value)
   })
 
+  // 方案列表按方案编号升序排列（方案一、方案二…… 自上而下编号递增）
+  // 无法解析编号的方案（如后端返回的"未命名方案"）统一排到末尾
+  const sortedPlanList = computed(() =>
+    [...planList.value].sort((a, b) => {
+      const na = parsePlanNo(a.name)
+      const nb = parsePlanNo(b.name)
+      if (na === null && nb === null) return 0
+      if (na === null) return 1
+      if (nb === null) return -1
+      return na - nb
+    }),
+  )
+
   // 过滤后的表格数据（按品种/包装规格搜索）
   const filteredTableData = computed(() => {
     const rows = planState.value.tableData
@@ -188,31 +201,47 @@ export function useApsArchive() {
     })
   })
 
-  // 从方案名解析序号：兼容中文数字（方案一 ~ 方案十）与阿拉伯数字（方案11）两种命名
+  // 中文数字 → 阿拉伯数字（一 → 1，十 → 10，十一 → 11，二十一 → 21，一百零一 → 101，一万零一 → 10001）
+  // 解析非法字符返回 null，供 parsePlanNo 判定该命名不参与编号占位
+  function parseChineseNum(text) {
+    const digits = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+    const units = { 十: 10, 百: 100, 千: 1000 }
+    const bigUnits = { 万: 10000, 亿: 100000000 }
+    let total = 0
+    let current = 0
+    for (const ch of text) {
+      if (ch in digits) {
+        current += digits[ch]
+      } else if (ch in units) {
+        // 十/百/千 前无数字时视为 1（如 十 → 1×10，十五 → 10+5）
+        if (current === 0) current = 1
+        total += current * units[ch]
+        current = 0
+      } else if (ch in bigUnits) {
+        // 万/亿 前的数字（含当前累计的十/百/千部分）整体乘以对应倍数
+        // 注意：此处不能像十/百/千那样在 current 为 0 时注入 1，否则 十万 会被误算为 110000
+        total = (total + current) * bigUnits[ch]
+        current = 0
+      } else {
+        return null
+      }
+    }
+    return total + current
+  }
+
+  // 从方案名解析序号：兼容中文数字（方案一 / 方案十一 / 方案二十一）与阿拉伯数字（方案11）两种命名
   // 解析失败（如后端返回的"未命名方案"）返回 null，不参与编号占位
   function parsePlanNo(name) {
     if (!name) return null
     const text = String(name)
-    // 优先匹配末尾的阿拉伯数字（方案11 / 方案100）
+    // 优先匹配末尾的阿拉伯数字（兼容历史上已用阿拉伯数字命名的方案，如 方案11）
     const arabicMatch = text.match(/(\d+)$/)
     if (arabicMatch) return Number(arabicMatch[1])
-    // 再匹配末尾的中文数字（方案一 ~ 方案十）
-    const chineseMap = {
-      一: 1,
-      二: 2,
-      三: 3,
-      四: 4,
-      五: 5,
-      六: 6,
-      七: 7,
-      八: 8,
-      九: 9,
-      十: 10,
-    }
-    const chineseMatch = text.match(/([一二三四五六七八九十])$/)
-    // 用 ?? null 归一化后严格比较，等价于旧的 != null（同时排除 undefined）
-    if (chineseMatch && (chineseMap[chineseMatch[1]] ?? null) !== null) {
-      return chineseMap[chineseMatch[1]]
+    // 再匹配末尾的中文数字（方案一 ~ 方案二十一）
+    const chineseMatch = text.match(/([一二三四五六七八九十百千万亿零]+)$/)
+    if (chineseMatch) {
+      const num = parseChineseNum(chineseMatch[1])
+      if (num !== null && num > 0) return num
     }
     return null
   }
@@ -228,11 +257,53 @@ export function useApsArchive() {
     return no
   }
 
-  // 阿拉伯数字 → 中文数字（1 → 一），大于 10 时直接使用阿拉伯数字
+  // 阿拉伯数字 → 中文数字（1 → 一，10 → 十，11 → 十一，21 → 二十一，101 → 一百零一）
+  // 方案编号统一保持中文数字形态，不再回落为阿拉伯数字
   function toChineseNum(n) {
-    const map = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
-    if (n <= 10) return map[n]
-    return String(n)
+    if (!Number.isInteger(n) || n <= 0) return String(n)
+    const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+    const smallUnits = ['', '十', '百', '千']
+    const bigUnits = ['', '万', '亿']
+
+    // 单个 4 位段（个/万/亿组）转中文：逢零补位，仅在中高位出现 0 且后续还有非零数字时输出“零”
+    function segToText(seg) {
+      let text = ''
+      let pendingZero = false
+      for (let pos = 3; pos >= 0; pos--) {
+        const digit = Math.floor(seg / 10 ** pos) % 10
+        if (digit === 0) {
+          if (text) pendingZero = true
+        } else {
+          if (pendingZero) {
+            text += '零'
+            pendingZero = false
+          }
+          text += digits[digit] + smallUnits[pos]
+        }
+      }
+      return text
+    }
+
+    // 从低位开始，每 4 位切一段（个/万/亿）
+    const groups = []
+    let num = n
+    while (num > 0) {
+      groups.push(num % 10000)
+      num = Math.floor(num / 10000)
+    }
+
+    let result = ''
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const text = segToText(groups[i])
+      if (text) {
+        // 低位段不足四位（以 0 开头）且前面已有高位内容时补一个“零”
+        if (result && groups[i] < 1000) result += '零'
+        result += text + (i > 0 ? bigUnits[i] : '')
+      }
+    }
+
+    // 10~19 省略开头的“一”（十、十一……十九），其余位置的“一十”需保留（如 110 → 一百一十）
+    return result.replace(/^一十/, '十')
   }
 
   // 点击"新增方案"：通过 store 创建本地草稿并持久化，刷新后方案不丢失
@@ -1053,6 +1124,7 @@ export function useApsArchive() {
   return {
     // 方案管理
     planList,
+    sortedPlanList,
     activePlanId,
     planState,
     filteredTableData,

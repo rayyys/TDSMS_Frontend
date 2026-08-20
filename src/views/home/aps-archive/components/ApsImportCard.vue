@@ -105,7 +105,7 @@ function onDownloadTemplate() {
     color: #303133;
   }
   .aps-import-card-sub {
-    font-size: 14px;
+    font-size: 1rem;
     color: #909399;
     margin-top: -8px;
   }
@@ -121,7 +121,7 @@ function onDownloadTemplate() {
     gap: 8px;
     cursor: pointer;
     color: @brand-primary;
-    font-size: 14px;
+    font-size: 1rem;
     background: #fff;
     transition:
       border-color 0.2s,
@@ -153,7 +153,7 @@ function onDownloadTemplate() {
   .aps-btn-download-template {
     width: 100%;
     height: 40px;
-    font-size: 15px;
+    font-size: 1rem;
     color: #ca4949;
     border-color: #ff9800;
     background: #fffdf8;
@@ -168,7 +168,7 @@ function onDownloadTemplate() {
 
   .aps-import-card-right {
     flex-shrink: 0;
-    width: 240px;
+    width: 300px;
     padding: 16px;
     background: #f7f9fc;
     border-radius: 4px;
@@ -176,7 +176,7 @@ function onDownloadTemplate() {
     align-self: stretch;
 
     .aps-import-tip-title {
-      font-size: 14px;
+      font-size: 1rem;
       font-weight: 600;
       color: #303133;
       margin-bottom: 10px;
@@ -185,7 +185,7 @@ function onDownloadTemplate() {
       margin: 0;
       padding-left: 20px;
       color: #606266;
-      font-size: 13px;
+      font-size: 1rem;
       line-height: 1.9;
     }
   }

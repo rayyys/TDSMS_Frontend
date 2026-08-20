@@ -13,7 +13,7 @@
         <!-- 已有方案：展示方案列表 -->
         <div v-if="planList.length" class="plan-list">
           <div
-            v-for="plan in planList"
+            v-for="plan in sortedPlanList"
             :key="plan.id"
             class="plan-list-item"
             :class="{ active: plan.id === activePlanId }"
@@ -99,6 +99,7 @@ import ApsDataPanel from './components/ApsDataPanel.vue'
 const {
   // 方案管理
   planList,
+  sortedPlanList,
   activePlanId,
   planState,
   filteredTableData,

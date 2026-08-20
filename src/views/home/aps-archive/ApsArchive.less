@@ -56,6 +56,8 @@
 
       .plan-list-item {
         height: 60px;
+        // 保持固定高度不被压缩：空间不足时让列表容器出现竖向滚动条，而不是压缩项高度
+        flex-shrink: 0;
         padding: 0 12px 0 16px;
         display: flex;
         align-items: center;
@@ -63,7 +65,7 @@
         cursor: pointer;
         // border-radius: 4px;
         color: @text-dark;
-        font-size: 15px;
+        font-size: 1rem;
         transition:
           background 0.15s,
           color 0.15s;
@@ -76,7 +78,7 @@
         }
 
         .plan-list-del {
-          font-size: 14px;
+          font-size: 1rem;
           color: #c0c4cc;
           opacity: 0;
           transition:
@@ -136,7 +138,7 @@
         .btn-add-plan {
           width: 100%;
           height: 40px;
-          font-size: 15px;
+          font-size: 1rem;
           color: @brand-primary;
           border-color: @brand-primary;
           background: #fff;

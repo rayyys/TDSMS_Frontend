@@ -12,12 +12,27 @@
           stroke-width="2"
           stroke-linejoin="round"
         />
-        <path d="M75 55 L75 65 L85 65" fill="#e6eef8" stroke="#c8d4e3" stroke-width="2" stroke-linejoin="round" />
+        <path
+          d="M75 55 L75 65 L85 65"
+          fill="#e6eef8"
+          stroke="#c8d4e3"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
         <line x1="52" y1="78" x2="78" y2="78" stroke="#dbe5f1" stroke-width="2" />
         <line x1="52" y1="90" x2="78" y2="90" stroke="#dbe5f1" stroke-width="2" />
         <line x1="52" y1="102" x2="68" y2="102" stroke="#dbe5f1" stroke-width="2" />
         <!-- 右侧带夹板的清单 -->
-        <rect x="95" y="35" width="70" height="110" rx="6" fill="#ffffff" stroke="#c8d4e3" stroke-width="2" />
+        <rect
+          x="95"
+          y="35"
+          width="70"
+          height="110"
+          rx="6"
+          fill="#ffffff"
+          stroke="#c8d4e3"
+          stroke-width="2"
+        />
         <rect x="105" y="28" width="50" height="14" rx="3" fill="#5b8cdb" />
         <circle cx="130" cy="35" r="3" fill="#ffffff" />
         <line x1="108" y1="62" x2="152" y2="62" stroke="#dbe5f1" stroke-width="2" />
@@ -75,7 +90,7 @@ function onAddPlan() {
     margin-bottom: 8px;
   }
   .aps-no-plan-empty-sub {
-    font-size: 14px;
+    font-size: 1rem;
     color: #909399;
     margin-bottom: 20px;
   }

@@ -3,7 +3,7 @@ alwaysApply: true
 scene: git_message
 ---
 
-- 提交信息必须使用中文撰写
+- 提交信息必须使用中文撰写，下面的简介内容应当按1、2、3条数排列，要说清楚提交的内容
 - 格式：`<type>(<scope>): <subject>`
   - type 和 scope 使用英文，subject 使用中文
   - type 可选值：feat, fix, refactor, style, docs, chore, test, perf

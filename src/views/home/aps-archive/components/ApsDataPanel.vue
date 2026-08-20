@@ -765,7 +765,7 @@ function onClickImport() {
     }
 
     .aps-selection-info {
-      font-size: 14px;
+      font-size: 1rem;
       color: #606266;
       em {
         font-style: normal;

@@ -25,8 +25,24 @@
         <line x1="108" y1="62" x2="108" y2="130" stroke="#dbe5f1" stroke-width="1.5" />
         <line x1="122" y1="62" x2="122" y2="130" stroke="#dbe5f1" stroke-width="1.5" />
         <circle cx="148" cy="128" r="14" fill="#5b8cdb" />
-        <line x1="142" y1="128" x2="154" y2="128" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
-        <line x1="148" y1="122" x2="148" y2="134" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+        <line
+          x1="142"
+          y1="128"
+          x2="154"
+          y2="128"
+          stroke="#ffffff"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
+        <line
+          x1="148"
+          y1="122"
+          x2="148"
+          y2="134"
+          stroke="#ffffff"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
         <circle cx="40" cy="60" r="3" fill="#dbe5f1" />
         <circle cx="32" cy="100" r="2" fill="#dbe5f1" />
         <circle cx="160" cy="50" r="2" fill="#dbe5f1" />
@@ -56,7 +72,7 @@
     margin-bottom: 6px;
   }
   .aps-upload-empty-sub {
-    font-size: 14px;
+    font-size: 1rem;
     color: #909399;
   }
 }
