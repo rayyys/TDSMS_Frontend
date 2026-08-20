@@ -269,7 +269,15 @@ const updateDensity = () => {
   if (debounceTimer) clearTimeout(debounceTimer)
 
   debounceTimer = setTimeout(() => {
-    const exactScale = w / props.baseWidth
+    const currentW = containerRef.value?.clientWidth || w
+    // 用「CSS 像素宽度」计算缩放比例（不补偿浏览器缩放）：
+    // 页面骨架全部使用 rem（postcss-pxtorem 自动转换），浏览器缩放时 rem 基准
+    // 随 CSS 宽度等比变化，物理尺寸保持不变；而 JS 动态计算的内联 px（列宽/字号/
+    // 内边距）不经过 pxtorem 转换，若用物理宽度计算 scale，缩放时 scale 不变、
+    // 内联 px 不变，物理尺寸会被浏览器缩放放大，与 rem 骨架不成比例。
+    // 统一以 CSS 宽度为基准后，缩放时 CSS 值等比反向变化，物理尺寸保持稳定，
+    // 与页面其它元素视觉比例一致。
+    const exactScale = currentW / props.baseWidth
     autoScale.value = Math.max(0.15, Math.min(exactScale, 2.0))
     // 列宽计算完成后通知子组件重新检测溢出状态
     // 使用 nextTick 等待 Vue 完成 DOM 更新，确保列宽已应用到表格
@@ -288,6 +296,15 @@ const startObserving = () => {
     resizeObserver = new ResizeObserver(rafLayout)
     resizeObserver.observe(containerRef.value)
   }
+  // 监听浏览器缩放（VisualViewport scale 变化），及时重算缩放比例，
+  // 避免缩放后列宽/行高沿用旧值造成视觉跳动
+  window.visualViewport?.addEventListener('resize', onVisualViewportResize)
+}
+
+// 浏览器缩放变化回调：容器 CSS 宽度随缩放变化（物理宽度不变），
+// 重算缩放比例后列宽/字号/内边距的物理尺寸保持稳定，避免视觉跳动
+function onVisualViewportResize() {
+  updateDensity()
 }
 
 const stopObserving = () => {
@@ -295,6 +312,7 @@ const stopObserving = () => {
     resizeObserver.disconnect()
     resizeObserver = null
   }
+  window.visualViewport?.removeEventListener('resize', onVisualViewportResize)
 }
 
 onMounted(() => {

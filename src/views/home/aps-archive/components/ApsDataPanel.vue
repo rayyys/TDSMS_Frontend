@@ -365,8 +365,14 @@ const ROW_LAYOUT = {
 }
 
 // 计算数据行高与表头行高（双行分组表头共用同一高度）
+// 行高必须整体随 scale 等比缩放（与字号/内边距一致）：
+// 页面骨架为 rem 单位，浏览器缩放时物理尺寸保持不变；若行高公式含固定基准
+// （如 40 + 8×scale），缩放时 CSS 行高不随 scale 等比变化，物理行高会被浏览器
+// 缩放放大，导致行高与内容、与页面其它元素不成比例（视觉上表格被"撑高"）。
+// 改为 (40 + 8) × scale 后，scale=1 时仍为 48px（与原公式一致），
+// 任何缩放比下物理行高都与页面其它元素等比例，视觉稳定。
 function tableRowHeight(scale) {
-  return Math.round(ROW_LAYOUT.baseRowHeight + ROW_LAYOUT.perScale * scale)
+  return Math.round((ROW_LAYOUT.baseRowHeight + ROW_LAYOUT.perScale) * scale)
 }
 
 // 将 tableColumns 映射为 el-table-v2 的列配置：

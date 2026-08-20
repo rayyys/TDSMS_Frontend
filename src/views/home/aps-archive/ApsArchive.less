@@ -3,7 +3,10 @@
 .aps-archive-page {
   // background-color: #f4f7fc;
   // 独立页可用高度 = 100vh - 顶部导航 80px - 上下内边距 20px*2，避免内容溢出产生多余滚动条
-  min-height: calc(100vh - 120px);
+  // 必须使用确定高度（height 而非 min-height）：整条 flex 高度链路变为确定高度后，
+  // 虚拟表格（el-auto-resizer + el-table-v2）的高度测量不再与自身内容互相反馈，
+  // 避免浏览器缩放时表格内容把容器撑得越来越高
+  height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
 
@@ -40,7 +43,7 @@
       // 底部预留空间，避免固定操作栏遮挡列表末尾内容
       padding: 24px 0 76px;
       box-sizing: border-box;
-      border: 1.6px solid #D8E2EF;
+      border: 1.6px solid #d8e2ef;
 
       .plan-list {
         flex: 1;
@@ -61,7 +64,9 @@
         // border-radius: 4px;
         color: @text-dark;
         font-size: 15px;
-        transition: background 0.15s, color 0.15s;
+        transition:
+          background 0.15s,
+          color 0.15s;
 
         .plan-list-name {
           flex: 1;
@@ -74,7 +79,9 @@
           font-size: 14px;
           color: #c0c4cc;
           opacity: 0;
-          transition: opacity 0.15s, color 0.15s;
+          transition:
+            opacity 0.15s,
+            color 0.15s;
 
           &:hover {
             color: #f56c6c;
@@ -168,7 +175,9 @@
         align-items: center;
         justify-content: center;
         cursor: default;
-        transition: border-color 0.2s, background 0.2s;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
       }
     }
   }
