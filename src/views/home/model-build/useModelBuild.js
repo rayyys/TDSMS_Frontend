@@ -244,7 +244,13 @@ export function useModelBuild() {
     if (!taskId) return
     matchCheckLoading.value = true
     try {
-      const res = await matchCheckSolve({ taskId, page, pageSize: matchPageSize })
+      const res = await matchCheckSolve({
+        taskId,
+        // 携带当前页面配置的部门参数，仅校验该部门下的数据匹配情况
+        departmentNames: schedulingStore.selectedDepartment,
+        page,
+        pageSize: matchPageSize,
+      })
       const data = res?.data?.data
       if (data) {
         matchCheckData.value.status = data.status !== false
@@ -347,8 +353,14 @@ export function useModelBuild() {
     if (!skipMatchCheck) {
       solvingLoading.value = true
       try {
-        // 仅需判断是否存在未匹配记录，pageSize 传 1 轻量探测
-        const matchRes = await matchCheckSolve({ taskId, page: 1, pageSize: 1 })
+        // 仅需判断是否存在未匹配记录，pageSize 传 1 轻量探测；
+        // 同时携带当前页面配置的部门参数，仅校验该部门下的数据匹配情况
+        const matchRes = await matchCheckSolve({
+          taskId,
+          departmentNames: schedulingStore.selectedDepartment,
+          page: 1,
+          pageSize: 1,
+        })
         const matchData = matchRes?.data?.data
         if (matchData && (matchData.total ?? 0) > 0) {
           await openMatchCheckDialog()

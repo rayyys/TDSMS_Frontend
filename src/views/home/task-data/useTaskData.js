@@ -122,8 +122,12 @@ export function useTaskData() {
       ? remoteInventoryOptions.value
       : localInventoryOptions.value,
   )
+  // 真实生产计划选项：过滤后端返回的空值（如空字符串，代表生产计划为空的记录），
+  // 避免渲染出空白选项；空值已由顶部「(空)」选项统一表达
   const productionPlanOptions = computed(() =>
-    remoteProductionPlanOptions.value.map((p) => ({ value: p, label: p })),
+    remoteProductionPlanOptions.value
+      .filter((p) => p !== '' && p !== null && p !== undefined)
+      .map((p) => ({ value: p, label: p })),
   )
 
   // 生产计划下拉框实际展示选项：在真实选项最顶端插入「全选」「(空)」两个特殊选项
@@ -134,11 +138,11 @@ export function useTaskData() {
   ])
 
   // 传给后端 /task/detailQuery 与 /task/detailFilterOptions 的月度生产计划筛选值：
-  // 剔除「全选」伪标记，并将「(空)」映射为空字符串（后端据此过滤生产计划为空的记录）
+  // 剔除「全选」伪标记，并将「(空)」映射为 null（后端据此过滤生产计划为空的记录）
   const serializedProductionPlans = computed(() =>
     filterProductionPlan.value
       .filter((v) => v !== PLAN_OPTION_ALL)
-      .map((v) => (v === PLAN_OPTION_EMPTY ? '' : v)),
+      .map((v) => (v === PLAN_OPTION_EMPTY ? null : v)),
   )
 
   /**

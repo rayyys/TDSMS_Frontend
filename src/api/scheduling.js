@@ -259,10 +259,10 @@ export function getTaskDetail(params) {
           if (value === undefined || value === null || value === '') continue
           if (Array.isArray(value)) {
             value.forEach((v) => {
-              if (v === undefined || v === null) return
-              // 月度生产计划支持空字符串：对应前端「(空)」选项，用于筛选生产计划为空的记录；
-              // 其余数组参数仍跳过空值，避免拼出无意义参数
-              if (v === '' && key !== 'monthlyProductionPlans') return
+              if (v === undefined) return
+              // 月度生产计划支持 null：对应前端「(空)」选项，序列化为 monthlyProductionPlans=null，
+              // 用于筛选生产计划为空的记录；其余数组参数仍跳过 null / 空串，避免拼出无意义参数
+              if ((v === null || v === '') && key !== 'monthlyProductionPlans') return
               qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`)
             })
           } else {
@@ -318,7 +318,8 @@ export function startSolveTask(data) {
  * 数据匹配校验（分页查询未匹配 APS 档案的记录）
  * POST /solve/matchCheck
  * 开始求解前预校验：存在未匹配的品种或规格时，弹窗提示用户先维护 APS 档案
- * @param {Object} data { taskId, page, pageSize }
+ * @param {Object} data { taskId, departmentNames, page, pageSize }
+ *   departmentNames：当前页面配置的部门（如 "302车间"），仅校验该部门下的数据匹配情况
  * @returns {Promise} data: { status, total, page, pageSize, missingData: [{ inventoryName, specification, reason }] }
  */
 export function matchCheckSolve(data) {

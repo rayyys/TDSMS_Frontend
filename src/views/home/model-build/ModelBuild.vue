@@ -272,11 +272,11 @@
   <div class="action-bar-space"></div>
 
   <!-- 数据匹配校验弹窗：solve/matchCheck 接口查询到未匹配 APS 档案记录时展示 -->
-  <!-- 弹窗宽度以 rem 固定（1920 设计稿基准下约 960px）：随窗口等比缩放，浏览器 Ctrl+滚轮缩放时视觉宽度保持稳定 -->
+  <!-- 弹窗宽度以 rem 固定（1920 设计稿基准下约 1096px）：随窗口等比缩放，浏览器 Ctrl+滚轮缩放时视觉宽度保持稳定 -->
   <el-dialog
     v-model="matchCheckVisible"
     title="数据匹配校验"
-    width="54.33rem"
+    width="62rem"
     align-center
     destroy-on-close
     class="data-match-check-dialog"
@@ -400,7 +400,7 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
 <style lang="less">
 .data-match-check-dialog {
   .el-dialog__header {
-    padding: 16px 20px;
+    padding: 16px 20px 16px 0;
     margin-right: 0;
     border-bottom: 1px solid #ebeef5;
   }
@@ -424,12 +424,11 @@ const capacityKeys = ['配料', '压片', '包衣', '包装']
   }
 
   .el-dialog__body {
-    padding: 20px;
+    padding: 0;
   }
 
   .el-dialog__footer {
-    padding: 12px 20px;
-    border-top: 1px solid #ebeef5;
+    padding: 12px 0 12px 20px;
   }
 
   .match-check-body {
