@@ -119,13 +119,39 @@ export function useModelSolve() {
 
   // —— 参数配置概览面板数据（仅用于展示，不参与业务逻辑计算） ——
 
-  /** 排产月份：按最早开工时间所在年月显示（原型图：2025年06月） */
+  /** 排产月份：优先取模型构建页配置的 productionMonth（YYYY-MM），为空时回退按最早开工时间推导 */
   const productionMonth = computed(() => {
-    const val = schedulingStore.earliestStartTime
-    if (!val) return '--'
-    const d = new Date(val)
+    const val = schedulingStore.productionMonth
+    if (val) {
+      const [year, month] = String(val).split('-')
+      if (year && month) return `${year}年${month}月`
+    }
+    const start = schedulingStore.earliestStartTime
+    if (!start) return '--'
+    const d = new Date(start)
     if (isNaN(d.getTime())) return '--'
     return `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月`
+  })
+
+  // —— 生产规则配置展示值（与模型构建页配置保持一致，仅用于参数概览展示）——
+  /** 连续运行上限（天） */
+  const continuousRunLimitText = computed(() => `${schedulingStore.continuousRunLimit} 天`)
+  /** 大清场时长（天） */
+  const cleaningTimeLargeText = computed(() => `${schedulingStore.cleaningTimeLarge} 天`)
+  /** 小清场时长（天） */
+  const cleaningTimeSmallText = computed(() => `${schedulingStore.cleaningTimeSmall} 天`)
+  /** 定期清场时长（天） */
+  const cleaningTimeRegularText = computed(() => `${schedulingStore.cleaningTimeRegular} 天`)
+  /** 班次换算（X 天 = Y 班时） */
+  const shiftConversionText = computed(
+    () => `${schedulingStore.shiftDays} 天 = ${schedulingStore.shiftHours} 班时`,
+  )
+
+  // —— 人员容量配置展示值（与模型构建页配置保持一致，仅用于参数概览展示）——
+  /** 早班人员容量：按工序顺序拼接为"配料 2 人，压片 2 人，包衣 2 人，包装 2 人" */
+  const capacityText = computed(() => {
+    const cap = schedulingStore.morningShiftCapacity || {}
+    return ['配料', '压片', '包衣', '包装'].map((key) => `${key} ${cap[key] ?? 0} 人`).join('，')
   })
 
   /** 求解开始时间（原型图：2025-06-06 14:30:12） */
@@ -347,6 +373,12 @@ export function useModelSolve() {
     maxSolveTimeLabel,
     // 参数配置概览数据
     productionMonth,
+    continuousRunLimitText,
+    cleaningTimeLargeText,
+    cleaningTimeSmallText,
+    cleaningTimeRegularText,
+    shiftConversionText,
+    capacityText,
     solveStartTimeText,
     maxSolveDurationText,
     // methods

@@ -155,7 +155,7 @@
               </div>
             </div>
 
-            <!-- 2. 生产规则配置（默认展示值，仅用于参数概览，不参与业务计算） -->
+            <!-- 2. 生产规则配置（展示值与模型构建页配置保持一致，仅用于参数概览，不参与业务计算） -->
             <div class="config-section">
               <div class="config-section-title">
                 <span class="section-num">2</span>
@@ -164,24 +164,28 @@
               <div class="config-list">
                 <div class="config-item">
                   <span class="config-label">连续运行上限：</span>
-                  <span class="config-value">5.5 天</span>
+                  <span class="config-value">{{ continuousRunLimitText }}</span>
                 </div>
                 <div class="config-item">
                   <span class="config-label">大清场时长：</span>
-                  <span class="config-value">0.5 天</span>
+                  <span class="config-value">{{ cleaningTimeLargeText }}</span>
                 </div>
                 <div class="config-item">
                   <span class="config-label">小清场时长：</span>
-                  <span class="config-value">0.25 天</span>
+                  <span class="config-value">{{ cleaningTimeSmallText }}</span>
                 </div>
                 <div class="config-item">
                   <span class="config-label">定期清场时长：</span>
-                  <span class="config-value">0.5 天</span>
+                  <span class="config-value">{{ cleaningTimeRegularText }}</span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">班次换算：</span>
+                  <span class="config-value">{{ shiftConversionText }}</span>
                 </div>
               </div>
             </div>
 
-            <!-- 3. 人员客量配置（默认展示值，仅用于参数概览，不参与业务计算） -->
+            <!-- 3. 人员容量配置（展示值与模型构建页配置保持一致，仅用于参数概览，不参与业务计算） -->
             <div class="config-section">
               <div class="config-section-title">
                 <span class="section-num">3</span>
@@ -190,7 +194,7 @@
               <div class="config-list">
                 <div class="config-item config-item--column">
                   <span class="config-label">人员容量：</span>
-                  <span class="config-value">配料 2 人，压片 2 人，包衣 2 人，包装 2 人</span>
+                  <span class="config-value">{{ capacityText }}</span>
                 </div>
                 <!-- <div class="config-item config-item--column"> -->
                 <!-- <span class="config-label">晚班人员容量：</span> -->
@@ -257,6 +261,12 @@ const {
   handleExport,
   // 参数概览展示数据
   productionMonth,
+  continuousRunLimitText,
+  cleaningTimeLargeText,
+  cleaningTimeSmallText,
+  cleaningTimeRegularText,
+  shiftConversionText,
+  capacityText,
   solveStartTimeText,
   maxSolveDurationText,
 } = useModelSolve()
