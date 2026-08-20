@@ -1,7 +1,7 @@
 <template>
   <div class="aps-plan-empty">
     <div class="aps-plan-empty-illu">
-      <svg viewBox="0 0 120 120" width="80" height="80" fill="none">
+      <svg viewBox="0 0 120 120" fill="none">
         <ellipse cx="60" cy="100" rx="44" ry="6" fill="#e6eef8" />
         <rect
           x="42"
@@ -43,6 +43,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    // 插画尺寸以 rem 固定（1920 设计稿基准 root=18px，原 80px 对应 4.44rem）：
+    // 浏览器缩放时 rem 随视口等比反向变化，插画物理尺寸保持稳定，与页面其余元素比例一致
+    svg {
+      width: 4.44rem;
+      height: 4.44rem;
+      display: block;
+    }
   }
   .aps-plan-empty-title {
     font-size: 1rem;

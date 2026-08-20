@@ -2,7 +2,7 @@ import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
-import { parseExcelFile, isExcelFile } from '@/utils/excelParse'
+import { parseExcelFile, validateExcelFile } from '@/utils/excelParse'
 import { useApsStore } from '@/stores/aps'
 import { loadApsDraftStates, saveApsDraftStates } from '@/utils/apsStorage'
 import {
@@ -493,14 +493,26 @@ export function useApsArchive() {
   }
 
   async function handleSelectedFile(file) {
-    if (!isExcelFile(file)) {
-      ElMessage.warning('仅支持 .xlsx / .xls 格式文件')
+    // ===== 上传前文件格式验证：扩展名 + MIME 类型双重校验 =====
+    const formatCheck = validateExcelFile(file)
+    if (!formatCheck.valid) {
+      ElMessage.error(formatCheck.message)
       return
     }
+
     const state = planState.value
     state.tableLoading = true
     try {
       const parsed = await parseExcelFile(file)
+
+      // ===== 表头合规性验证：与预设模板完全一致（仅校验表头，不检查数据内容） =====
+      const headerErrors = validateApsHeaders(parsed)
+      if (headerErrors.length) {
+        // 拦截不合规文件：明确提示首个问题所在，阻止进入已上传状态
+        ElMessage.error(`文件表头与模板不一致：${headerErrors[0]}`)
+        return
+      }
+
       const rows = parseApsSheetToRows(parsed)
       state.tableData = rows
       state.uploadedFileName = file.name
@@ -687,6 +699,47 @@ export function useApsArchive() {
   ]
   // 首行与次行跨行纵向合并的列（品种/包装规格/生产周期/集采/年销量）
   const APS_HEADER_VERTICAL_MERGES = [0, 1, 19, 20, 21]
+
+  /**
+   * 校验上传文件的表头是否与预设模板完全一致（仅校验表头，不检查数据内容）
+   * 模板为双行表头：第 1 行（parseExcelFile 的 columns）为分组/跨行列标题，
+   * 第 2 行（rows[0]）为字段标题，均需与 APS_HEADER_ROW1 / APS_HEADER_ROW2 完全一致
+   * @param {object} parsed parseExcelFile 的解析结果
+   * @returns {string[]} 校验失败的具体错误信息数组（为空表示表头完全匹配）
+   */
+  function validateApsHeaders(parsed) {
+    const errors = []
+    const sheetName = Object.keys(parsed)[0]
+    if (!sheetName) {
+      errors.push('文件中未找到工作表，无法读取表头')
+      return errors
+    }
+    const sheet = parsed[sheetName]
+    // 双行表头逐一比对：期望值取模板，实际值取上传文件解析结果
+    const rowMappings = [
+      { label: '第1行表头', actual: sheet.columns || [], template: APS_HEADER_ROW1 },
+      { label: '第2行表头', actual: sheet.rows?.[0] || [], template: APS_HEADER_ROW2 },
+    ]
+    for (const { label, actual, template } of rowMappings) {
+      const maxCols = Math.max(template.length, actual.length)
+      for (let col = 0; col < maxCols; col++) {
+        const expected = String(template[col] ?? '').trim()
+        const actualText = String(actual[col] ?? '').trim()
+        if (expected) {
+          // 模板要求该列必须有标题：缺失 / 名称不符均给出明确提示
+          if (!actualText) {
+            errors.push(`${label}缺少'${expected}'列标题`)
+          } else if (actualText !== expected) {
+            errors.push(`${label}第${col + 1}列标题应为'${expected}'而非'${actualText}'`)
+          }
+        } else if (actualText) {
+          // 模板该列为空（合并表头的从列），上传文件却填了内容 → 判定为多余列
+          errors.push(`${label}第${col + 1}列存在多余标题'${actualText}'，请删除该列`)
+        }
+      }
+    }
+    return errors
+  }
 
   // 用本地表格数据重建 APS 模板格式的 Excel 文件
   // 原始 File 对象仅存内存，刷新或切换页面后丢失；此时表格数据仍在，

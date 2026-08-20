@@ -1,7 +1,7 @@
 <template>
   <div class="aps-upload-empty">
     <div class="aps-upload-empty-illu">
-      <svg viewBox="0 0 200 180" width="180" height="160" fill="none">
+      <svg viewBox="0 0 200 180" fill="none">
         <ellipse cx="100" cy="155" rx="70" ry="5" fill="#e6eef8" />
         <path
           d="M70 35 L120 35 L140 55 L140 140 L70 140 Z"
@@ -64,6 +64,13 @@
 
   .aps-upload-empty-illu {
     margin-bottom: 16px;
+    // 插画尺寸以 rem 固定（1920 设计稿基准 root=18px，原 180px/160px 对应 10rem/8.89rem）：
+    // 浏览器缩放时 rem 随视口等比反向变化，插画物理尺寸保持稳定，与页面其余元素比例一致
+    svg {
+      width: 10rem;
+      height: 8.89rem;
+      display: block;
+    }
   }
   .aps-upload-empty-title {
     font-size: 18px;

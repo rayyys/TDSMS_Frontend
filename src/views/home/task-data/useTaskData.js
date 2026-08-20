@@ -19,7 +19,7 @@ const TABLE_COLUMNS = [
   { key: 'materialName', label: '存货名称', width: 240 },
   { key: 'specification', label: '规格', width: 220 },
   { key: 'u8Stock', label: 'U8现存量', width: 130 },
-  { key: 'monthlyPlan', label: '07月份生产计划', width: 170 },
+  { key: 'monthlyPlan', label: '月份生产计划', width: 170 },
   { key: 'submitTotal', label: '提报合计', width: 140 },
 ]
 

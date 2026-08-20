@@ -6,7 +6,11 @@ import { Search, RefreshRight, Loading } from '@element-plus/icons-vue'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { useApsStore } from '@/stores/aps'
 import { useStepNav } from '../useStepNav'
-import { isExcelFile } from '@/utils/excelParse'
+import {
+  parseExcelFile,
+  validateExcelFile,
+  validateSchedulingTemplateHeaders,
+} from '@/utils/excelParse'
 import {
   importTask,
   downloadTaskTemplate,
@@ -153,9 +157,11 @@ export function useDataUpload() {
     input.click()
   }
 
-  function processFile(file) {
-    if (!isExcelFile(file)) {
-      ElMessage.error('仅支持 .xlsx / .xls 格式文件')
+  async function processFile(file) {
+    // ===== 1. 文件格式验证：扩展名 + MIME 类型双重校验 =====
+    const formatCheck = validateExcelFile(file)
+    if (!formatCheck.valid) {
+      ElMessage.error(formatCheck.message)
       return
     }
 
@@ -169,6 +175,21 @@ export function useDataUpload() {
       ElMessage.warning(
         '所选方案尚未保存为档案，请先在「APS排产信息档案」页上传 Excel 并保存后再上传计划文件',
       )
+      return
+    }
+
+    // ===== 2. 表头合规性验证：解析文件首行表头并与模板逐列比对（仅校验表头，不检查数据内容） =====
+    try {
+      const parsed = await parseExcelFile(file)
+      const firstSheet = Object.values(parsed)[0]
+      const headerCheck = validateSchedulingTemplateHeaders(firstSheet?.columns)
+      if (!headerCheck.valid) {
+        // 拦截不合规文件：明确提示表头问题，阻止进入已上传状态
+        ElMessage.error(`文件表头与模板不一致：${headerCheck.message}`)
+        return
+      }
+    } catch (err) {
+      ElMessage.error(err?.message || '文件解析失败，无法读取表头')
       return
     }
 
