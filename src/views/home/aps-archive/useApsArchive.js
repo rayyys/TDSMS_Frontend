@@ -40,6 +40,9 @@ function createPlanState() {
     editingBackup: null,
     // 原始上传文件对象（保存时上传给后端解析）
     rawFile: null,
+    // 是否处于「未保存」状态：上传/重新导入新表格后置 true，保存成功后置 false。
+    // 该状态下行操作（编辑/删除）锁定，需先保存后才能编辑
+    needsSave: false,
     // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
     detailLoaded: false,
   }
@@ -199,6 +202,15 @@ export function useApsArchive() {
       const packageSpec = String(row.packageSpec ?? '')
       return product.includes(keyword) || packageSpec.includes(keyword)
     })
+  })
+
+  // 行操作（编辑/删除）是否可用：仅「已保存且未被重新导入覆盖」时可操作。
+  // 本地草稿上传后（id 为 plan- 前缀）或已保存方案重新导入覆盖后均处于未保存状态，
+  // 行操作一律锁定，需先点击保存后才能进行编辑
+  const canRowOperate = computed(() => {
+    const state = planState.value
+    const activePlan = getActivePlan()
+    return isSavedArchive(activePlan) && !state.needsSave
   })
 
   // 中文数字 → 阿拉伯数字（一 → 1，十 → 10，十一 → 11，二十一 → 21，一百零一 → 101，一万零一 → 10001）
@@ -520,6 +532,11 @@ export function useApsArchive() {
       state.selectedRows = []
       // 保留原始文件对象，保存时上传给后端解析
       state.rawFile = file
+      // 上传/重新导入新表格视为「未保存」：覆盖原数据后需重新保存才能编辑，
+      // 同时清空选中、编辑与新增行定位状态，避免残留旧态
+      state.needsSave = true
+      state.newRowIndex = null
+      clearEditingState(state)
       if (rows.length === 0) {
         ElMessage.warning('Excel 中未解析到数据行，请检查模板')
       } else {
@@ -537,16 +554,18 @@ export function useApsArchive() {
   /**
    * 将 parseExcelFile 的结果转为表格行数据
    * 模板首行为合并表头（品种/包装规格/配料/...），次行为字段表头
-   * 数据从第 3 行（数组下标 2）开始
+   * parseExcelFile 把首行放入 columns，rows 从第 2 行（字段表头）开始，
+   * 因此数据从 rows 下标 1（Excel 第 3 行）开始
    */
   function parseApsSheetToRows(parsed) {
     const sheetName = Object.keys(parsed)[0]
     if (!sheetName) return []
     const { rows } = parsed[sheetName]
-    if (!Array.isArray(rows) || rows.length < 2) return []
+    if (!Array.isArray(rows) || rows.length < 1) return []
 
-    // 数据从第 3 行（index 2）开始
-    return rows.slice(2).map((row) => {
+    // 数据从 rows 下标 1（Excel 第 3 行）开始；
+    // 注意不能从下标 2 截取，否则会吞掉 Excel 中的第一条数据
+    return rows.slice(1).map((row) => {
       const parsedRow = trimRowWhitespace({
         product: row[0] ?? '',
         packageSpec: row[1] ?? '',
@@ -949,6 +968,11 @@ export function useApsArchive() {
       const formData = new FormData()
       formData.append('archiveName', archiveName)
       formData.append('file', state.rawFile)
+      // 已保存方案重新导入后的覆盖保存：携带 archiveId，后端据此覆盖原档案数据；
+      // 首次保存（本地草稿）不传该参数，保持原有创建逻辑不受影响
+      if (isSavedArchive(activePlan)) {
+        formData.append('archiveId', String(activePlan.id))
+      }
 
       const res = await createApsArchive(formData)
       const result = res?.data
@@ -963,14 +987,16 @@ export function useApsArchive() {
         const oldId = activePlan.id
         const newId = String(data.archiveId)
         apsStore.markPlanSaved(oldId, newId)
-        // 迁移表格状态到新 id：保证保存后仍显示当前数据，刷新后也能正常展示
-        if (planStateMap.value[oldId]) {
+        // 迁移表格状态到新 id：仅当 id 变更时迁移，避免覆盖保存（oldId 与 newId 相同）误删状态
+        if (newId !== oldId && planStateMap.value[oldId]) {
           planStateMap.value[newId] = planStateMap.value[oldId]
           delete planStateMap.value[oldId]
         }
       }
       state.selectedRows = []
       state.newRowIndex = null
+      // 保存完成：解除未保存标记，恢复行操作（编辑/删除）权限
+      state.needsSave = false
       clearEditingState(state)
 
       ElMessage.success(`保存成功，共导入 ${data.dataCount ?? state.tableData.length} 条数据`)
@@ -1181,6 +1207,7 @@ export function useApsArchive() {
     activePlanId,
     planState,
     filteredTableData,
+    canRowOperate,
     mainLoading,
     onAddPlan,
     onSelectPlan,

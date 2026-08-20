@@ -302,9 +302,8 @@ export function useDataUpload() {
 
   // 后端历史记录接口字段 → 前端历史表格字段 映射
   // 返回体字段名与前端列 prop 不一致（如 originalFileName / remark 等），
-  // 在数据入口统一转换为前端约定的字段名；taskId 用作「任务编号」展示，同时保留原字段供删除/导入使用
+  // 在数据入口统一转换为前端约定的字段名；taskId 保留原字段（供删除/导入操作使用）
   const HISTORY_ROW_MAP = {
-    taskId: 'taskNo',
     originalFileName: 'fileName',
     remark: 'taskRemark',
   }
@@ -394,8 +393,13 @@ export function useDataUpload() {
       }
       // 接口返回 { total, pageNum, pageSize, records }
       const data = result?.data || result || {}
-      // 后端字段名与前端历史表格列 prop 不一致，在此统一映射（taskId 原样保留供删除/导入使用）
-      historyDialogData.value = (data.records || []).map(mapHistoryRow)
+      // 后端字段名与前端历史表格列 prop 不一致，在此统一映射（taskId 原样保留供删除/导入使用）；
+      // 任务编号由前端按列表顺序自动生成：从 1 开始连续递增，列表变化（分页/删除后重新拉取）时自动重算
+      historyDialogData.value = (data.records || []).map((row, index) => {
+        const mapped = mapHistoryRow(row)
+        mapped.taskNo = index + 1
+        return mapped
+      })
       historyTotal.value = data.total || 0
     } catch (err) {
       const status = err?.response?.status
@@ -449,9 +453,8 @@ export function useDataUpload() {
       importMode.value = 'manual'
       activeTab.value = 'upload'
       historyDialogVisible.value = false
-      ElMessage.success('已导入历史记录')
-      // 导入成功后自动跳转到任务数据页
-      stepNavHandleNext()
+      // 仅导入文件到当前数据上传页，不自动跳转；如需创建新任务流，由用户点击「下一步」进入任务数据页
+      ElMessage.success('历史记录导入成功，文件已就绪')
     } catch (err) {
       const status = err?.response?.status
       if (status === 400) {

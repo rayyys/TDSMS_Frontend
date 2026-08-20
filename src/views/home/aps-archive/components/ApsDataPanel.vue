@@ -94,6 +94,7 @@
                       <el-button
                         link
                         class="row-action-btn row-action-edit"
+                        :class="{ 'is-locked': !canRowOperate }"
                         :icon="isRowEditable(rowData) ? Check : Edit"
                         @click="
                           isRowEditable(rowData) ? onConfirmRowEdit(rowData) : onEditRow(rowData)
@@ -102,6 +103,7 @@
                       <el-button
                         link
                         class="row-action-btn row-action-del"
+                        :class="{ 'is-locked': !canRowOperate }"
                         :icon="Delete"
                         @click="onDeleteRow(rowData)"
                       />
@@ -185,7 +187,13 @@
 
     <!-- 底部操作栏 -->
     <div class="aps-data-footer">
-      <el-button class="aps-btn-add-row" plain :icon="Plus" @click="onAddRow">
+      <el-button
+        class="aps-btn-add-row"
+        :class="{ 'is-locked': !canRowOperate }"
+        plain
+        :icon="Plus"
+        @click="onAddRow"
+      >
         新增数据行
       </el-button>
       <div class="aps-footer-right">
@@ -205,7 +213,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { Plus, Upload, Edit, Delete, Search, Check } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import AdaptiveTableContainer from '@/components/AdaptiveTableContainer.vue'
 import ApsOverflowText from './ApsOverflowText.vue'
 
@@ -213,6 +221,11 @@ const props = defineProps({
   filteredTableData: {
     type: Array,
     required: true,
+  },
+  // 行操作（编辑/删除）是否可用：未保存状态（已上传未保存 / 重新导入覆盖后）为 false，按钮置灰
+  canRowOperate: {
+    type: Boolean,
+    default: false,
   },
 })
 
@@ -655,6 +668,8 @@ function onResetSearch() {
 }
 
 function onAddRow() {
+  // 未保存状态：锁定新增数据行，提示用户先保存，避免覆盖数据未入库时混入新增行
+  if (guardRowOperation()) return
   emit('add-row')
   // 新增数据行位于末尾，延迟等待虚拟表格渲染完成后滚动定位到该行并聚焦首个可编辑单元格
   nextTick(() => {
@@ -695,7 +710,18 @@ function onSaveTable() {
   emit('save-table')
 }
 
+// 行操作前置守卫：未保存状态下点击编辑/删除/确认按钮，仅提示先保存，不执行实际操作
+function guardRowOperation() {
+  if (!props.canRowOperate) {
+    ElMessage.info('请先点击保存，之后可以进行编辑')
+    return true
+  }
+  return false
+}
+
 function onEditRow(row) {
+  // 未保存状态：锁定编辑操作，提示用户先保存
+  if (guardRowOperation()) return
   emit('edit-row', row)
   // 编辑态输入框渲染完成后自动聚焦，使点击其他位置产生失焦事件，「取消编辑」确认框才能触发
   nextTick(() => {
@@ -704,10 +730,14 @@ function onEditRow(row) {
 }
 
 function onConfirmRowEdit(row) {
+  // 未保存状态：锁定确认修改操作，提示用户先保存
+  if (guardRowOperation()) return
   emit('confirm-row-edit', row)
 }
 
 function onDeleteRow(row) {
+  // 未保存状态：锁定删除操作，提示用户先保存
+  if (guardRowOperation()) return
   emit('delete-row', row)
 }
 
@@ -840,6 +870,20 @@ function onClickImport() {
         color: #1c4b8e;
         border-color: #004aa9;
         background-color: #f4f7fc;
+      }
+    }
+
+    // 未保存状态下的「新增数据行」按钮：置灰禁用，点击仅提示先保存
+    .aps-btn-add-row.is-locked {
+      color: #c0c4cc;
+      border-color: #e4e7ed;
+      background-color: #fff;
+      cursor: not-allowed;
+
+      &:hover {
+        color: #c0c4cc;
+        border-color: #e4e7ed;
+        background-color: #fff;
       }
     }
 
@@ -1007,6 +1051,16 @@ function onClickImport() {
     color: #f56c6c;
     &:hover {
       color: #c45656;
+    }
+  }
+
+  // 未保存状态下的行操作按钮：置灰禁用（图标与文字统一灰色），点击仅提示先保存
+  .row-action-btn.is-locked {
+    color: #c0c4cc;
+    cursor: not-allowed;
+
+    &:hover {
+      color: #c0c4cc;
     }
   }
 }

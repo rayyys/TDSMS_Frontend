@@ -61,6 +61,7 @@
           v-else
           v-model:plan-state="planState"
           :filtered-table-data="filteredTableData"
+          :can-row-operate="canRowOperate"
           @cancel-selection="onCancelSelection"
           @batch-delete="onBatchDelete"
           @reset-search="onResetSearch"
@@ -103,6 +104,7 @@ const {
   activePlanId,
   planState,
   filteredTableData,
+  canRowOperate,
   mainLoading,
   onAddPlan,
   onSelectPlan,

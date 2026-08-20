@@ -54,52 +54,52 @@
     }
   }
 
-    // APS 排产信息档案选择行
-    .aps-archive-row {
-        // 与 mode-switch-row 同款定位：容器与白色卡片同宽居中，再左偏移 50px 抵消卡片内边距
-        max-width: 1100px;
-        margin: 0 auto;
-        position: relative;
-        left: -50px;
-        padding: 20px 0 20px 0;
-        display: flex;
-        align-items: center;
-        gap: 12px;
+  // APS 排产信息档案选择行
+  .aps-archive-row {
+    // 与 mode-switch-row 同款定位：容器与白色卡片同宽居中，再左偏移 50px 抵消卡片内边距
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+    left: -50px;
+    padding: 20px 0 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 
-        .aps-archive-label {
-          font-size: 16px;
-          color: #303133;
-          font-weight: 500;
-          flex-shrink: 0;
+    .aps-archive-label {
+      font-size: 16px;
+      color: #303133;
+      font-weight: 500;
+      flex-shrink: 0;
 
-          .required {
-            color: #f56c6c;
-            margin-left: 2px;
-          }
-        }
-
-        .aps-archive-select {
-          // 固定宽度，禁止 flex 拉伸覆盖（flex-basis:0 会挤掉 width）
-          flex: 0 0 auto;
-          width: 15rem !important;
-        }
+      .required {
+        color: #f56c6c;
+        margin-left: 2px;
+      }
     }
-      // 上传区域标题
-    .upload-section-title {
-        // 与 mode-switch-row 同款定位：容器与白色卡片同宽居中，再左偏移 50px 抵消卡片内边距
-        max-width: 1100px;
-        margin: 0 auto;
-        position: relative;
-        left: -50px;
-        font-size: 16px;
-        color: #303133;
-        font-weight: 500;
-        padding-bottom: 10px;
-        .required {
-          color: #f56c6c;
-          margin-left: 2px;
-        }
+
+    .aps-archive-select {
+      // 固定宽度，禁止 flex 拉伸覆盖（flex-basis:0 会挤掉 width）
+      flex: 0 0 auto;
+      width: 15rem !important;
     }
+  }
+  // 上传区域标题
+  .upload-section-title {
+    // 与 mode-switch-row 同款定位：容器与白色卡片同宽居中，再左偏移 50px 抵消卡片内边距
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+    left: -50px;
+    font-size: 16px;
+    color: #303133;
+    font-weight: 500;
+    padding-bottom: 10px;
+    .required {
+      color: #f56c6c;
+      margin-left: 2px;
+    }
+  }
 
   // 主体白色卡片
   .upload-main-card {
@@ -121,9 +121,6 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
-
-
-
 
       // 上传虚线框
       .upload-area {
@@ -221,7 +218,9 @@
           font-size: 16px;
           color: #303133;
           flex-shrink: 0;
-          width: 80px;
+          // 固定文案强制单行显示：禁止自动换行，宽度随内容自适应，避免不同分辨率/缩放下折行
+          white-space: nowrap;
+          width: auto;
         }
         .remark-input {
           flex: 1;
@@ -255,8 +254,8 @@
     .btn-next {
       width: 140px;
       height: 44px;
-      background-color: #004AA9; // 深蓝色匹配图片中的“下一步”
-      border-color: #004AA9;
+      background-color: #004aa9; // 深蓝色匹配图片中的“下一步”
+      border-color: #004aa9;
       font-size: 16px;
 
       &:hover {
