@@ -37,59 +37,12 @@ export function parseExcelFile(file) {
   })
 }
 
-// 药业车间分解编排计划模板表头（数组顺序即模板列顺序）
-export const SCHEDULING_TEMPLATE_HEADERS = [
-  '部门',
-  '物料编码',
-  '存货名称',
-  '规格',
-  'U8现存量',
-  '月份生产计划',
-  '提报合计',
-]
-
 /**
- * 校验药业车间分解编排计划文件表头是否与预设模板完全一致（仅校验表头，不检查数据内容）：
- * - 表头完整性：模板要求的必填列是否全部存在、无遗漏
- * - 表头顺序：各列排列顺序是否与模板完全一致
- * - 表头匹配度：列标题名称是否与模板完全对应，无拼写错误或格式差异
- * @param {string[]} headers 解析自文件首行的表头数组
- * @returns {{ valid: boolean, message?: string }} valid=false 时 message 为具体原因
+ * 简单校验文件：必须是 .xlsx / .xls
  */
-export function validateSchedulingTemplateHeaders(headers) {
-  const list = (headers || []).map((h) => String(h).trim())
-  // 文件首行无任何表头时，直接提示使用模板
-  if (list.length === 0 || list.every((h) => !h)) {
-    return { valid: false, message: '未能从文件中读取到表头信息，请使用系统模板填写后重新上传' }
-  }
-
-  // 1. 表头完整性：检查模板要求的必填列是否存在且无遗漏
-  const missing = SCHEDULING_TEMPLATE_HEADERS.filter((h) => !list.includes(h))
-  if (missing.length > 0) {
-    return { valid: false, message: `缺少'${missing.join("'、'")}'列标题` }
-  }
-
-  // 2. 表头匹配度与顺序：逐列核对列标题名称及排列顺序
-  for (let i = 0; i < SCHEDULING_TEMPLATE_HEADERS.length; i++) {
-    const expected = SCHEDULING_TEMPLATE_HEADERS[i]
-    const actual = list[i] ?? ''
-    if (actual !== expected) {
-      return {
-        valid: false,
-        message: `第${i + 1}列标题应为'${expected}'而非'${actual || '空'}'`,
-      }
-    }
-  }
-
-  // 3. 多余列校验：模板之外的列不允许出现在文件中
-  if (list.length > SCHEDULING_TEMPLATE_HEADERS.length) {
-    return {
-      valid: false,
-      message: `第${SCHEDULING_TEMPLATE_HEADERS.length + 1}列'${list[SCHEDULING_TEMPLATE_HEADERS.length]}'不属于模板字段，请删除多余列`,
-    }
-  }
-
-  return { valid: true }
+export function isExcelFile(file) {
+  const name = file.name.toLowerCase()
+  return name.endsWith('.xlsx') || name.endsWith('.xls')
 }
 
 // Excel 允许的 MIME 类型：
