@@ -79,8 +79,8 @@
                   fixed
                   @scroll="onV2Scroll"
                 >
-                  <!-- 单元格渲染：按列类型分支（选择列 / 操作列 / 可编辑输入框 / 只读溢出文本） -->
-                  <template #cell="{ column, rowData }">
+                  <!-- 单元格渲染：按列类型分支（选择列 / 序号列 / 操作列 / 可编辑输入框 / 只读溢出文本） -->
+                  <template #cell="{ column, rowData, rowIndex }">
                     <!-- 主视口中固定列的占位副本：内容由左/右固定面板渲染，此处跳过避免双重显示 -->
                     <template v-if="column.placeholderSign"></template>
                     <!-- 区块选择列：点击勾选框自动选中该品种连续区块 -->
@@ -89,6 +89,10 @@
                       :model-value="isRowSelected(rowData)"
                       @click="onToggleBlock(rowData)"
                     />
+                    <!-- 序号列：仅前端展示，序号随当前展示数据顺序实时更新，无任何交互 -->
+                    <span v-else-if="column.key === 'index'" class="aps-index-cell">{{
+                      rowIndex + 1
+                    }}</span>
                     <!-- 操作列：编辑/删除按钮 -->
                     <div v-else-if="column.key === 'actions'" class="row-actions">
                       <el-button
@@ -308,6 +312,8 @@ onMounted(() => {
 // width 为设计稿基准列宽，组件会根据容器宽度等比缩放；type 标记选择列/操作列
 const tableColumns = [
   { key: 'selection', type: 'selection', width: 55 },
+  // 序号列：仅前端展示，紧随勾选框列之后，列宽与勾选框列保持一致
+  { key: 'index', type: 'index', label: '序号', width: 55 },
   { key: 'product', prop: 'product', label: '品种', width: 180 },
   { key: 'packageSpec', prop: 'packageSpec', label: '包装规格', width: 250 },
   // 配料
@@ -397,7 +403,13 @@ function buildV2Columns(getColWidth) {
       key: col.key,
       dataKey: col.prop,
       width: getColWidth(col),
-      fixed: col.type === 'selection' ? 'left' : col.type === 'action' ? 'right' : undefined,
+      // 多选列与序号列固定左侧，操作列固定右侧，其余数据列不固定
+      fixed:
+        col.type === 'selection' || col.type === 'index'
+          ? 'left'
+          : col.type === 'action'
+            ? 'right'
+            : undefined,
     }
     // 仅数据列参与分组合并（选择/操作列不分组）
     v2Col.group = COLUMN_GROUP_MAP[col.key] ?? null
@@ -967,6 +979,15 @@ function onClickImport() {
     box-sizing: border-box;
     text-align: center;
     overflow: hidden;
+  }
+
+  // 序号列单元格：文本居中，颜色与普通数据一致，保持固定列视觉统一
+  :deep(.aps-index-cell) {
+    display: inline-block;
+    width: 100%;
+    text-align: center;
+    color: #606266;
+    white-space: nowrap;
   }
 
   // 单元格内输入框与只读文本统一居中

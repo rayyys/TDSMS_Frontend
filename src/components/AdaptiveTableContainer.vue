@@ -132,7 +132,8 @@ function getScaledDesignWidth(col) {
 }
 
 function getDataColBaseWidth(col) {
-  if (col.type === 'selection') return selectionColWidth.value
+  // 序号列与多选列同为固定宽列：宽度保持一致，不参与剩余空间分配
+  if (col.type === 'selection' || col.type === 'index') return selectionColWidth.value
 
   const scaledDesignW = getScaledDesignWidth(col)
   const headerMinW = getHeaderMinWidth(col)
@@ -173,8 +174,12 @@ function getDataColBaseWidth(col) {
   return baseW
 }
 
-const dataColumns = computed(() => props.columns.filter((c) => c.type !== 'selection'))
+// 固定宽列（多选列/序号列）不参与数据列宽度分配与剩余空间均分
+const dataColumns = computed(() =>
+  props.columns.filter((c) => c.type !== 'selection' && c.type !== 'index'),
+)
 const hasSelectionColumn = computed(() => props.columns.some((c) => c.type === 'selection'))
+const hasIndexColumn = computed(() => props.columns.some((c) => c.type === 'index'))
 
 const dynamicDataColWidths = computed(() => {
   const widths = {}
@@ -189,7 +194,9 @@ const dynamicDataColWidths = computed(() => {
   })
 
   const boxW = containerWidth.value
-  const selectionReserve = hasSelectionColumn.value ? selectionColWidth.value : 0
+  // 预留固定列宽度：多选列 + 序号列（各占 selectionColWidth 宽）
+  const fixedColCount = (hasSelectionColumn.value ? 1 : 0) + (hasIndexColumn.value ? 1 : 0)
+  const selectionReserve = fixedColCount * selectionColWidth.value
   const available = Math.round(boxW - selectionReserve)
   const totalMin = raw.reduce((s, w) => s + w.baseW, 0)
 
@@ -234,7 +241,7 @@ const dynamicDataColWidths = computed(() => {
 
 // --- 对外暴露的样式与方法 ---
 const columnWidthLayoutStr = (col) => {
-  if (col.type === 'selection') return Math.round(selectionColWidth.value)
+  if (col.type === 'selection' || col.type === 'index') return Math.round(selectionColWidth.value)
   // dynamicDataColWidths 已返回取整后的值，直接复用
   return dynamicDataColWidths.value[col.key || col.prop] ?? Math.round(getDataColBaseWidth(col))
 }
