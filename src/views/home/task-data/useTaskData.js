@@ -34,6 +34,11 @@ const ROW_FIELD_MAP = {
   submittedTotal: 'submitTotal',
 }
 
+// 生产计划下拉框特殊选项：置于真实选项最顶端的「全选」与「(空)」
+// 二者为前端合成的伪选项，不真实存在于后端返回的月度生产计划列表中
+const PLAN_OPTION_ALL = '__ALL__'
+const PLAN_OPTION_EMPTY = '__EMPTY__'
+
 // 将后端返回的行数据映射为前端表格字段结构（未在映射中的字段原样透传，便于后续扩展）
 function mapRow(row) {
   const mapped = {}
@@ -121,6 +126,21 @@ export function useTaskData() {
     remoteProductionPlanOptions.value.map((p) => ({ value: p, label: p })),
   )
 
+  // 生产计划下拉框实际展示选项：在真实选项最顶端插入「全选」「(空)」两个特殊选项
+  const productionPlanDisplayOptions = computed(() => [
+    { value: PLAN_OPTION_ALL, label: '全选' },
+    { value: PLAN_OPTION_EMPTY, label: '(空)' },
+    ...productionPlanOptions.value,
+  ])
+
+  // 传给后端 /task/detailQuery 与 /task/detailFilterOptions 的月度生产计划筛选值：
+  // 剔除「全选」伪标记，并将「(空)」映射为空字符串（后端据此过滤生产计划为空的记录）
+  const serializedProductionPlans = computed(() =>
+    filterProductionPlan.value
+      .filter((v) => v !== PLAN_OPTION_ALL)
+      .map((v) => (v === PLAN_OPTION_EMPTY ? '' : v)),
+  )
+
   /**
    * 拉取筛选下拉选项
    * 并发请求部门 / 月度生产计划 / 存货名称三类选项，taskId 兼容上传与历史导入两种来源；
@@ -142,7 +162,7 @@ export function useTaskData() {
       // 三类选项互不依赖，并发请求提升加载速度；同时携带当前已选筛选值作为联动上下文
       const baseFilter = {
         departmentNames: filterDepartment.value,
-        monthlyProductionPlans: filterProductionPlan.value,
+        monthlyProductionPlans: serializedProductionPlans.value,
         inventoryNames: filterInventoryName.value,
       }
       const [deptRes, planRes, invRes] = await Promise.all([
@@ -184,6 +204,44 @@ export function useTaskData() {
   // 向后端联动刷新各下拉框的可用选项（请求体带当前已选筛选值，后端据此过滤）
   function handleFilterDropdownVisibleChange(visible) {
     if (visible) fetchFilterOptions()
+  }
+
+  // —— 生产计划下拉框「全选 / (空)」特殊选项的勾选联动 ——
+  // 记录上一次勾选集合，用于区分「全选」是刚被勾选还是刚被取消
+  let prevPlanSelection = []
+
+  /**
+   * 处理生产计划多选勾选变化
+   * - 勾选「全选」：自动补全所有真实生产计划选项
+   * - 取消「全选」：同时清空全部真实生产计划选项
+   * - 「全选」保持勾选时单独取消某个真实选项：联动取消「全选」
+   * - 「(空)」为独立选项，不参与全选联动
+   */
+  function handleProductionPlanChange(selected) {
+    const realValues = productionPlanOptions.value.map((o) => o.value)
+    const realSelected = selected.filter((v) => v !== PLAN_OPTION_ALL && v !== PLAN_OPTION_EMPTY)
+    const hasAll = selected.includes(PLAN_OPTION_ALL)
+    const hasEmpty = selected.includes(PLAN_OPTION_EMPTY)
+    const allJustChecked = hasAll && !prevPlanSelection.includes(PLAN_OPTION_ALL)
+    const allJustUnchecked = !hasAll && prevPlanSelection.includes(PLAN_OPTION_ALL)
+    // 重组勾选集合：「(空)」独立选项始终按当前勾选状态保留
+    const next = new Set(realSelected)
+    if (hasEmpty) next.add(PLAN_OPTION_EMPTY)
+    if (allJustChecked && realValues.length > 0) {
+      // 勾选「全选」：补全全部真实选项并保留「全选」标记
+      realValues.forEach((v) => next.add(v))
+      next.add(PLAN_OPTION_ALL)
+    } else if (allJustUnchecked) {
+      // 取消「全选」：清空全部真实选项，仅保留独立选项
+      next.clear()
+      if (hasEmpty) next.add(PLAN_OPTION_EMPTY)
+    } else if (hasAll && prevPlanSelection.includes(PLAN_OPTION_ALL)) {
+      // 全选保持勾选态：仅在全部真实选项仍勾选时才保留「全选」，否则联动取消
+      const allRealChecked = realValues.length > 0 && realValues.every((v) => next.has(v))
+      if (allRealChecked) next.add(PLAN_OPTION_ALL)
+    }
+    filterProductionPlan.value = Array.from(next)
+    prevPlanSelection = filterProductionPlan.value
   }
 
   // —— 展示数据 ——
@@ -317,7 +375,7 @@ export function useTaskData() {
           keyword: inputKeyword.value || undefined,
           // 三个筛选条件均非必填，未选时传空数组表示不限制
           departmentNames: filterDepartment.value,
-          monthlyProductionPlans: filterProductionPlan.value,
+          monthlyProductionPlans: serializedProductionPlans.value,
           inventoryNames: filterInventoryName.value,
         })
         const result = res?.data
@@ -375,8 +433,10 @@ export function useTaskData() {
     departmentOptions,
     inventoryOptions,
     productionPlanOptions,
+    productionPlanDisplayOptions,
     filterOptionsLoading,
     handleFilterDropdownVisibleChange,
+    handleProductionPlanChange,
     // 搜索 / 翻页
     keyword,
     currentPage,

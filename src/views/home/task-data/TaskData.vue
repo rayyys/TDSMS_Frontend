@@ -37,9 +37,10 @@
             :loading="filterOptionsLoading"
             popper-class="dept-select-popper"
             @visible-change="handleFilterDropdownVisibleChange"
+            @change="handleProductionPlanChange"
           >
             <el-option
-              v-for="opt in productionPlanOptions"
+              v-for="opt in productionPlanDisplayOptions"
               :key="opt.value"
               :label="opt.label"
               :value="opt.value"
@@ -174,9 +175,10 @@ const {
   filterInventoryName,
   departmentOptions,
   inventoryOptions,
-  productionPlanOptions,
+  productionPlanDisplayOptions,
   filterOptionsLoading,
   handleFilterDropdownVisibleChange,
+  handleProductionPlanChange,
   // 搜索 / 翻页
   keyword,
   currentPage,

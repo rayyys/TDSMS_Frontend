@@ -259,9 +259,11 @@ export function getTaskDetail(params) {
           if (value === undefined || value === null || value === '') continue
           if (Array.isArray(value)) {
             value.forEach((v) => {
-              if (v !== undefined && v !== null && v !== '') {
-                qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`)
-              }
+              if (v === undefined || v === null) return
+              // 月度生产计划支持空字符串：对应前端「(空)」选项，用于筛选生产计划为空的记录；
+              // 其余数组参数仍跳过空值，避免拼出无意义参数
+              if (v === '' && key !== 'monthlyProductionPlans') return
+              qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`)
             })
           } else {
             qs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
