@@ -209,8 +209,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
   const cleaningTimeLarge = ref(saved?.cleaningTimeLarge ?? 0.5) // 大清场时长（天）
   const cleaningTimeSmall = ref(saved?.cleaningTimeSmall ?? 0.25) // 小清场时长（天）
   const cleaningTimeRegular = ref(saved?.cleaningTimeRegular ?? 0.5) // 定期清场时长（天）
-  const shiftDays = ref(saved?.shiftDays ?? 1) // 班次换算-天数
-  const shiftHours = ref(saved?.shiftHours ?? 2) // 班次换算-班时
+  const shiftHours = ref(saved?.shiftHours ?? 2) // 班次换算-班时（仅整数；天数固定为 1，见 SHIFT_DAYS_FIXED）
   // 3. 人员容量配置（仅保留早班，晚班已下线）
   const morningShiftCapacity = ref(
     saved?.morningShiftCapacity ?? { 配料: 3, 压片: 2, 包衣: 2, 包装: 4 },
@@ -249,7 +248,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       cleaningTimeLarge: cleaningTimeLarge.value,
       cleaningTimeSmall: cleaningTimeSmall.value,
       cleaningTimeRegular: cleaningTimeRegular.value,
-      shiftDays: shiftDays.value,
       shiftHours: shiftHours.value,
       morningShiftCapacity: morningShiftCapacity.value,
       selectedDepartment: selectedDepartment.value,
@@ -292,7 +290,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       cleaningTimeLarge,
       cleaningTimeSmall,
       cleaningTimeRegular,
-      shiftDays,
       shiftHours,
       morningShiftCapacity,
       selectedDepartment,
@@ -881,7 +878,6 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     cleaningTimeLarge,
     cleaningTimeSmall,
     cleaningTimeRegular,
-    shiftDays,
     shiftHours,
     morningShiftCapacity,
     selectedDepartment,

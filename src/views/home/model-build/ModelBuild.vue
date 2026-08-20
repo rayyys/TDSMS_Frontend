@@ -148,22 +148,14 @@
             <div class="rule-group-title">班次换算配置</div>
             <div class="rule-row rule-row--shift">
               <div class="rule-control">
-                <el-input-number
-                  v-model="schedulingStore.shiftDays"
-                  :min="0.1"
-                  :step="0.5"
-                  :precision="2"
-                  :controls="true"
-                  controls-position="right"
-                  :disabled="isModelBuildLocked"
-                  class="stable-input-number"
-                />
+                <!-- 天数固定为 1 天，不允许用户手动修改，提交时统一引用 SHIFT_DAYS_FIXED 固定值 -->
+                <span class="shift-days-fixed">{{ SHIFT_DAYS_FIXED }}</span>
                 <span class="rule-unit">天 =</span>
                 <el-input-number
                   v-model="schedulingStore.shiftHours"
-                  :min="0.1"
-                  :step="0.5"
-                  :precision="2"
+                  :min="1"
+                  :step="1"
+                  :precision="0"
                   :controls="true"
                   controls-position="right"
                   :disabled="isModelBuildLocked"
@@ -362,6 +354,7 @@
 <script setup>
 import { Back, Warning } from '@element-plus/icons-vue'
 import { useModelBuild } from './useModelBuild'
+import { SHIFT_DAYS_FIXED } from './modelBuildDefaults'
 
 const {
   schedulingStore,

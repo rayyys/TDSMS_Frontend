@@ -1,9 +1,9 @@
 import { computed, ref, watch, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useSchedulingStore } from '@/stores/scheduling'
 import { useStepNav, STEP_ROUTES } from '../useStepNav'
-import { MODEL_BUILD_DEFAULTS } from './modelBuildDefaults'
+import { MODEL_BUILD_DEFAULTS, SHIFT_DAYS_FIXED } from './modelBuildDefaults'
 import {
   startSolveTask,
   getSolveTask,
@@ -152,7 +152,6 @@ export function useModelBuild() {
     { label: '大清场', value: () => schedulingStore.cleaningTimeLarge },
     { label: '小清场', value: () => schedulingStore.cleaningTimeSmall },
     { label: '定期清场', value: () => schedulingStore.cleaningTimeRegular },
-    { label: '班次换算-天数', value: () => schedulingStore.shiftDays },
     { label: '班次换算-班时', value: () => schedulingStore.shiftHours },
     { label: '配料用人', value: () => schedulingStore.morningShiftCapacity?.['配料'] },
     { label: '压片用人', value: () => schedulingStore.morningShiftCapacity?.['压片'] },
@@ -392,7 +391,7 @@ export function useModelBuild() {
           periodicCleaningDays: schedulingStore.cleaningTimeRegular,
         },
         shiftConversion: {
-          naturalDays: schedulingStore.shiftDays,
+          naturalDays: SHIFT_DAYS_FIXED, // 天数固定为 1，直接引用固定值，不允许用户修改
           shiftCount: schedulingStore.shiftHours,
         },
       },
@@ -485,16 +484,26 @@ export function useModelBuild() {
     return `${year}年${month}月`
   })
 
-  // 恢复页面默认参数：填入集中管理的默认值，其余参数字段清空
+  // 恢复页面默认参数：先弹出确认框，用户确认后才填入集中管理的默认值，其余参数字段清空
   // 默认值统一在 modelBuildDefaults.js 中维护，修改即可生效
-  function handleResetDefaults() {
+  async function handleResetDefaults() {
+    try {
+      // 二次确认：防止用户误触导致已配置的参数被全部重置
+      await ElMessageBox.confirm('确定把所有已经改好的配置调整为默认配置吗', '恢复默认参数', {
+        type: 'warning',
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+      })
+    } catch {
+      // 用户点击取消：不执行重置
+      return
+    }
     // —— 生产规则配置 ——
     schedulingStore.continuousRunLimit = MODEL_BUILD_DEFAULTS.continuousRunLimit
     schedulingStore.cleaningTimeLarge = MODEL_BUILD_DEFAULTS.cleaningTimeLarge
     schedulingStore.cleaningTimeSmall = MODEL_BUILD_DEFAULTS.cleaningTimeSmall
     schedulingStore.cleaningTimeRegular = MODEL_BUILD_DEFAULTS.cleaningTimeRegular
-    // —— 班次换算配置 ——
-    schedulingStore.shiftDays = MODEL_BUILD_DEFAULTS.shiftDays
+    // —— 班次换算配置（天数固定为 SHIFT_DAYS_FIXED，无需重置）——
     schedulingStore.shiftHours = MODEL_BUILD_DEFAULTS.shiftHours
     // —— 人员容量配置（早班）——
     schedulingStore.morningShiftCapacity = { ...MODEL_BUILD_DEFAULTS.morningShiftCapacity }

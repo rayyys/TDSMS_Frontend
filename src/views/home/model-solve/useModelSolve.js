@@ -2,6 +2,7 @@ import { computed, ref, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { VideoPlay, VideoPause, Lock, Download } from '@element-plus/icons-vue'
 import { useSchedulingStore } from '@/stores/scheduling'
+import { SHIFT_DAYS_FIXED } from '../model-build/modelBuildDefaults'
 import {
   stopSolveTask as stopSolveApi,
   getSolveTask as getSolveTaskApi,
@@ -142,9 +143,9 @@ export function useModelSolve() {
   const cleaningTimeSmallText = computed(() => `${schedulingStore.cleaningTimeSmall} 天`)
   /** 定期清场时长（天） */
   const cleaningTimeRegularText = computed(() => `${schedulingStore.cleaningTimeRegular} 天`)
-  /** 班次换算（X 天 = Y 班时） */
+  /** 班次换算（X 天 = Y 班时，天数固定引用 SHIFT_DAYS_FIXED） */
   const shiftConversionText = computed(
-    () => `${schedulingStore.shiftDays} 天 = ${schedulingStore.shiftHours} 班时`,
+    () => `${SHIFT_DAYS_FIXED} 天 = ${schedulingStore.shiftHours} 班时`,
   )
 
   // —— 人员容量配置展示值（与模型构建页配置保持一致，仅用于参数概览展示）——
