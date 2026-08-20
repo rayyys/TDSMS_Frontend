@@ -78,6 +78,22 @@ export function deleteApsArchive(params) {
 }
 
 /**
+ * 更新 APS 方案名称与备注
+ * POST /aps/updateName
+ * 名称与备注在同一接口中提交：archiveName 必填，remark 可选；
+ * 仅修改名称时需把当前备注一并回传，避免后端覆盖为空
+ * @param {Object} data { archiveId, archiveName, remark }
+ * @returns {Promise} data: { archiveId, archiveName, updateTime, ... }
+ */
+export function updateApsArchiveName(data) {
+  return request({
+    method: 'post',
+    url: '/aps/updateName',
+    data,
+  })
+}
+
+/**
  * 新增 APS 明细（前端点击"新增数据行"填写完成保存时调用）
  * POST /aps/itemCreate
  * @param {Object} data { archiveId, productName, packageSpecification, mixingLine, mixingBatchQuantity, ... }

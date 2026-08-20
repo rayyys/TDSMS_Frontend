@@ -9,6 +9,26 @@
       </div>
     </div>
 
+    <!-- 方案备注：展示行 + 编辑（编辑按钮文案切换为保存） -->
+    <div class="aps-remark-bar">
+      <span class="aps-remark-label">备注：</span>
+      <template v-if="!planState.remarkEditing">
+        <span class="aps-remark-text">{{ planRemark || '暂无备注' }}</span>
+        <el-button class="aps-btn-remark" link @click="startRemarkEdit">编辑</el-button>
+      </template>
+      <template v-else>
+        <el-input
+          v-model="planState.remarkDraft"
+          class="aps-remark-input"
+          placeholder="请输入备注内容"
+          maxlength="100"
+          @keyup.esc="cancelRemarkEdit"
+          @keyup.enter="confirmRemarkEdit"
+        />
+        <el-button class="aps-btn-remark" link @click="confirmRemarkEdit">保存</el-button>
+      </template>
+    </div>
+
     <!-- 顶部工具栏 -->
     <div class="aps-data-toolbar">
       <div class="aps-toolbar-left">
@@ -258,6 +278,11 @@ const props = defineProps({
     type: String,
     default: '正在解析Excel...',
   },
+  // 当前激活方案的备注（用于顶部备注展示行）
+  planRemark: {
+    type: String,
+    default: '',
+  },
 })
 
 // planState 改为 v-model 双向绑定（defineModel）：
@@ -275,6 +300,7 @@ const emit = defineEmits([
   'add-row',
   'export-table',
   'save-table',
+  'save-remark',
   'edit-row',
   'cancel-edit',
   'confirm-row-edit',
@@ -708,6 +734,26 @@ function onResetSearch() {
   emit('reset-search')
 }
 
+// ================== 方案备注编辑 ==================
+// 备注编辑态（remarkEditing / remarkDraft）存于共享的 planState，随方案隔离；
+// 进入编辑态时以当前备注预填草稿，保存交给父组件调用接口处理
+function startRemarkEdit() {
+  const state = planState.value
+  state.remarkDraft = props.planRemark
+  state.remarkEditing = true
+}
+
+function cancelRemarkEdit() {
+  const state = planState.value
+  state.remarkEditing = false
+  state.remarkDraft = ''
+}
+
+// 确认保存备注：交由父组件调用 /aps/updateName 提交并刷新列表
+function confirmRemarkEdit() {
+  emit('save-remark')
+}
+
 // 搜索输入框点击守卫：未保存状态下置灰只读，点击输入区域仅提示先保存
 function onSearchAreaClick() {
   guardRowOperation()
@@ -828,6 +874,57 @@ function onClickImport() {
       display: flex;
       align-items: center;
       gap: 4px;
+    }
+  }
+
+  // 方案备注行：展示「备注：[内容][编辑]」，编辑态切换为输入框 + 保存
+  .aps-remark-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    // 固定高度：查看态/编辑态高度始终一致（含 10px 上下内边距），彻底避免切换时高度突变
+    height: 52px;
+    padding: 10px 20px;
+    box-sizing: border-box;
+
+    .aps-remark-label {
+      flex-shrink: 0;
+      font-size: 1rem;
+      color: #303133;
+      // 与编辑态输入框等高，避免切换时高度突变
+      line-height: 32px;
+      white-space: nowrap;
+    }
+
+    .aps-remark-text {
+      flex: 1;
+      min-width: 0;
+      font-size: 1rem;
+      color: #606266;
+      // 与编辑态输入框等高，避免切换时高度突变
+      line-height: 32px;
+      // 非编辑态：底部横线模拟输入框视觉，提示可编辑
+      border-bottom: 1px solid #dcdfe6;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .aps-remark-input {
+      flex: 1;
+      min-width: 0;
+
+      :deep(.el-input__wrapper) {
+        height: 32px;
+        border-radius: 4px;
+      }
+    }
+
+    .aps-btn-remark {
+      flex-shrink: 0;
+      font-size: 1rem;
+      color: @brand-primary;
     }
   }
 

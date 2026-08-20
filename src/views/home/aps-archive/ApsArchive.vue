@@ -16,13 +16,53 @@
             v-for="plan in sortedPlanList"
             :key="plan.id"
             class="plan-list-item"
-            :class="{ active: plan.id === activePlanId }"
+            :class="{
+              active: plan.id === activePlanId,
+              'plan-updating': updatingPlanId === plan.id,
+            }"
             @click="onSelectPlan(plan.id)"
           >
-            <span class="plan-list-name">{{ plan.name }}</span>
-            <el-icon class="plan-list-del" @click.stop="onDeletePlan(plan)">
-              <Delete />
-            </el-icon>
+            <!-- 名称编辑态：输入框 + 对号确认图标 -->
+            <template v-if="editingPlanId === plan.id">
+              <el-input
+                v-model="editingPlanName"
+                class="plan-list-edit-input"
+                size="small"
+                maxlength="30"
+                placeholder="请输入方案名称"
+                :disabled="updatingPlanId === plan.id"
+                @click.stop
+                @keyup.enter="confirmRename(plan)"
+                @keyup.esc="cancelRename"
+              />
+              <!-- 提交期间显示 loading 图标，成功后自动退出编辑态 -->
+              <el-icon v-if="updatingPlanId === plan.id" class="is-loading plan-list-loading">
+                <Loading />
+              </el-icon>
+              <el-icon v-else class="plan-list-confirm" @click.stop="confirmRename(plan)">
+                <Check />
+              </el-icon>
+            </template>
+            <!-- 查看态：名称 + 编辑按钮（仅当前选中方案）+ 删除按钮 -->
+            <template v-else>
+              <span class="plan-list-name">{{ plan.name }}</span>
+              <!-- 备注提交期间：该方案模块置灰 loading，隐藏操作按钮 -->
+              <el-icon v-if="updatingPlanId === plan.id" class="is-loading plan-list-loading">
+                <Loading />
+              </el-icon>
+              <template v-else>
+                <el-icon
+                  v-if="plan.id === activePlanId"
+                  class="plan-list-edit"
+                  @click.stop="startRename(plan)"
+                >
+                  <EditPen />
+                </el-icon>
+                <el-icon class="plan-list-del" @click.stop="onDeletePlan(plan)">
+                  <Delete />
+                </el-icon>
+              </template>
+            </template>
           </div>
         </div>
 
@@ -63,10 +103,12 @@
           :filtered-table-data="filteredTableData"
           :can-row-operate="canRowOperate"
           :table-loading-text="tableLoadingText"
+          :plan-remark="planRemark"
           @cancel-selection="onCancelSelection"
           @batch-delete="onBatchDelete"
           @reset-search="onResetSearch"
           @search-submit="onSearchSubmit"
+          @save-remark="onSaveRemark"
           @add-row="onAddRow"
           @export-table="onExportTable"
           @save-table="onSaveTable"
@@ -91,7 +133,7 @@
 </template>
 
 <script setup>
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, EditPen, Check, Loading } from '@element-plus/icons-vue'
 import { useApsArchive } from './useApsArchive'
 import PlanListEmpty from './components/PlanListEmpty.vue'
 import ApsNoPlanEmpty from './components/ApsNoPlanEmpty.vue'
@@ -105,12 +147,22 @@ const {
   sortedPlanList,
   activePlanId,
   planState,
+  planRemark,
   filteredTableData,
   canRowOperate,
   mainLoading,
   onAddPlan,
   onSelectPlan,
   onDeletePlan,
+  // 方案名称编辑
+  editingPlanId,
+  editingPlanName,
+  updatingPlanId,
+  startRename,
+  cancelRename,
+  confirmRename,
+  // 方案备注保存
+  onSaveRemark,
   // Excel 上传与解析
   fileInputRef,
   triggerFileInput,

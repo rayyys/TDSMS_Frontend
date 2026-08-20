@@ -65,10 +65,11 @@ export const useApsStore = defineStore('aps', () => {
         // 兼容 data 为数组 / data 为 { records } 分页结构
         const raw = result?.data ?? result
         const list = Array.isArray(raw) ? raw : Array.isArray(raw?.records) ? raw.records : []
-        // 后端已保存方案（权威数据源）
+        // 后端已保存方案（权威数据源）；remark 由后端列表接口返回（可能为空字符串）
         const serverPlans = list.map((item) => ({
           id: String(item.archiveId),
           name: item.archiveName || '未命名方案',
+          remark: item.remark ?? '',
           isSaved: true,
         }))
         // 本地草稿（未保存，仅存在于 localStorage）
@@ -100,11 +101,21 @@ export const useApsStore = defineStore('aps', () => {
 
   // 本地新增方案（草稿）：持久化到 localStorage，刷新后不丢失
   function addLocalPlan(name) {
-    const plan = { id: `plan-${Date.now()}`, name, isSaved: false }
+    const plan = { id: `plan-${Date.now()}`, name, remark: '', isSaved: false }
     planList.value.push(plan)
     activePlanId.value = plan.id
     persist()
     return plan
+  }
+
+  // 更新方案本地元信息（名称/备注）：本地草稿直接修改；
+  // 已保存方案由接口调用成功后同步，保证界面显示与后端一致
+  function patchPlan(id, patch) {
+    const entry = planList.value.find((p) => p.id === id)
+    if (!entry) return
+    if (patch.name !== undefined) entry.name = patch.name
+    if (patch.remark !== undefined) entry.remark = patch.remark
+    persist()
   }
 
   // 保存成功后：将本地草稿升级为已保存方案（id 换为后端 archiveId）
@@ -156,6 +167,7 @@ export const useApsStore = defineStore('aps', () => {
     listLoading,
     ensurePlanList,
     addLocalPlan,
+    patchPlan,
     markPlanSaved,
     removePlan,
     selectPlan,

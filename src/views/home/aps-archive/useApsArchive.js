@@ -9,6 +9,7 @@ import {
   createApsArchive,
   createApsArchiveItem,
   updateApsArchiveItem,
+  updateApsArchiveName,
   batchDeleteApsArchiveItems,
   deleteApsArchive,
   exportApsArchive,
@@ -47,6 +48,10 @@ function createPlanState() {
     needsSave: false,
     // 是否已从后端加载过该方案明细（避免切换方案时重复请求）
     detailLoaded: false,
+    // 是否处于备注编辑态
+    remarkEditing: false,
+    // 备注编辑草稿
+    remarkDraft: '',
   }
 }
 
@@ -211,6 +216,9 @@ export function useApsArchive() {
     return isSavedArchive(activePlan) && !state.needsSave
   })
 
+  // 当前激活方案的备注（用于右侧数据面板的备注展示行）
+  const planRemark = computed(() => getActivePlan()?.remark ?? '')
+
   // 中文数字 → 阿拉伯数字（一 → 1，十 → 10，十一 → 11，二十一 → 21，一百零一 → 101，一万零一 → 10001）
   // 解析非法字符返回 null，供 parsePlanNo 判定该命名不参与编号占位
   function parseChineseNum(text) {
@@ -324,10 +332,130 @@ export function useApsArchive() {
 
   // 点击方案项：切换激活（同步持久化选中态），已保存方案按需拉取明细
   function onSelectPlan(planId) {
+    // 切换方案时退出方案名称编辑态，未确认的改名不生效（保持原数据不变）
+    cancelRename()
     if (planId === activePlanId.value) return
     apsStore.selectPlan(planId)
     // 切换到已保存但明细尚未加载过的方案时，拉取其明细数据
     loadPlanDetail(getActivePlan())
+  }
+
+  // ================== 方案名称编辑 ==================
+  // 正在编辑名称的方案 id（null 表示无）
+  const editingPlanId = ref(null)
+  // 名称编辑草稿
+  const editingPlanName = ref('')
+  // 正在调用 /aps/updateName 更新名称/备注的方案 id（null 表示无）：期间该方案模块置灰 loading
+  const updatingPlanId = ref(null)
+
+  // 点击编辑按钮：进入该方案的名称编辑态，草稿预填当前名称
+  function startRename(plan) {
+    editingPlanId.value = plan.id
+    editingPlanName.value = plan.name
+  }
+
+  // 取消编辑：清空编辑态，保持原名称不变
+  function cancelRename() {
+    editingPlanId.value = null
+    editingPlanName.value = ''
+  }
+
+  // 确认改名：已保存方案调用 /aps/updateName 提交（同时回传当前备注，避免覆盖为空），
+  // 成功后同步本地并刷新方案列表；本地草稿仅本地修改
+  async function confirmRename(plan) {
+    const newName = (editingPlanName.value || '').trim()
+    if (!newName) {
+      ElMessage.warning('方案名称不能为空')
+      return
+    }
+    if (newName === plan.name) {
+      cancelRename()
+      return
+    }
+
+    if (isSavedArchive(plan)) {
+      // 提交期间：该方案模块置灰 loading，屏蔽再次操作
+      updatingPlanId.value = plan.id
+      try {
+        const res = await updateApsArchiveName({
+          archiveId: Number(plan.id),
+          archiveName: newName,
+          remark: plan.remark || '',
+        })
+        const result = res?.data
+        if (result?.success === false) {
+          ElMessage.error(result.message || '更新方案名称失败')
+          return
+        }
+      } catch (err) {
+        const status = err?.response?.status
+        if (status !== 401) {
+          // 401 已在响应拦截器中统一处理（提示 + 跳转）
+          ElMessage.error(
+            err?.response?.data?.message || err.message || '更新方案名称失败，请稍后重试',
+          )
+        }
+        return
+      } finally {
+        updatingPlanId.value = null
+      }
+    }
+
+    apsStore.patchPlan(plan.id, { name: newName })
+    cancelRename()
+    ElMessage.success('方案名称已更新')
+    // 接口调用成功后刷新方案列表，保证显示与后端一致
+    await apsStore.ensurePlanList(true)
+  }
+
+  // ================== 方案备注编辑 ==================
+  // 备注编辑态（remarkEditing / remarkDraft）存于 planState，由右侧数据面板直接维护；
+  // 此处仅处理「保存」：已保存方案调用 /aps/updateName 提交（同时回传当前名称，避免覆盖为空），
+  // 成功后同步本地并刷新方案列表；本地草稿仅本地修改
+  async function onSaveRemark() {
+    const state = planState.value
+    const activePlan = getActivePlan()
+    if (!activePlan) return
+
+    const newRemark = (state.remarkDraft || '').trim()
+    if (newRemark === (activePlan.remark || '')) {
+      state.remarkEditing = false
+      state.remarkDraft = ''
+      return
+    }
+
+    if (isSavedArchive(activePlan)) {
+      // 提交期间：该方案模块置灰 loading，屏蔽再次操作
+      updatingPlanId.value = activePlan.id
+      try {
+        const res = await updateApsArchiveName({
+          archiveId: Number(activePlan.id),
+          archiveName: activePlan.name,
+          remark: newRemark,
+        })
+        const result = res?.data
+        if (result?.success === false) {
+          ElMessage.error(result.message || '更新备注失败')
+          return
+        }
+      } catch (err) {
+        const status = err?.response?.status
+        if (status !== 401) {
+          // 401 已在响应拦截器中统一处理（提示 + 跳转）
+          ElMessage.error(err?.response?.data?.message || err.message || '更新备注失败，请稍后重试')
+        }
+        return
+      } finally {
+        updatingPlanId.value = null
+      }
+    }
+
+    apsStore.patchPlan(activePlan.id, { remark: newRemark })
+    state.remarkEditing = false
+    state.remarkDraft = ''
+    ElMessage.success('备注已更新')
+    // 接口调用成功后刷新方案列表，保证显示与后端一致
+    await apsStore.ensurePlanList(true)
   }
 
   // 删除方案：已保存方案先删除后端数据（避免刷新后重新出现），再清理本地缓存
@@ -1264,12 +1392,22 @@ export function useApsArchive() {
     sortedPlanList,
     activePlanId,
     planState,
+    planRemark,
     filteredTableData,
     canRowOperate,
     mainLoading,
     onAddPlan,
     onSelectPlan,
     onDeletePlan,
+    // 方案名称编辑
+    editingPlanId,
+    editingPlanName,
+    updatingPlanId,
+    startRename,
+    cancelRename,
+    confirmRename,
+    // 方案备注保存
+    onSaveRemark,
     // Excel 上传与解析
     fileInputRef,
     triggerFileInput,
