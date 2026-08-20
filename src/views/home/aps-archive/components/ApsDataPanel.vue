@@ -35,17 +35,39 @@
       </div>
 
       <div class="aps-toolbar-right">
+        <!-- 输入框：未保存状态下置灰只读，点击提示先保存（与搜索/重置按钮控制逻辑保持一致） -->
         <el-input
           v-model="planState.searchQuery"
           class="aps-search-input"
-          placeholder="请输入搜索内容"
-          clearable
+          :class="{ 'is-locked': !canRowOperate }"
+          placeholder="搜索关键词..."
+          :clearable="canRowOperate"
+          :readonly="!canRowOperate"
+          @click="onSearchAreaClick"
+          @keyup.enter="onSearchSubmit"
+          @clear="onSearchSubmit"
         >
           <template #suffix>
-            <el-icon><Search /></el-icon>
+            <!-- 放大镜图标可点击触发搜索，与 task-data 搜索框交互一致 -->
+            <el-icon class="search-icon" @click="onSearchSubmit"><Search /></el-icon>
           </template>
         </el-input>
-        <el-button class="aps-btn-reset" @click="onResetSearch">重置</el-button>
+        <!-- 搜索按钮：未保存状态下置灰，点击提示先保存（与行操作列控制逻辑保持一致） -->
+        <el-button
+          class="aps-btn-search"
+          :class="{ 'is-locked': !canRowOperate }"
+          @click="onSearchSubmit"
+        >
+          搜索
+        </el-button>
+        <!-- 重置按钮：未保存状态下置灰，点击提示先保存 -->
+        <el-button
+          class="aps-btn-reset"
+          :class="{ 'is-locked': !canRowOperate }"
+          @click="onResetSearch"
+        >
+          重置
+        </el-button>
       </div>
     </div>
 
@@ -53,7 +75,7 @@
     <div
       v-loading="planState.tableLoading"
       class="aps-data-table-wrap"
-      element-loading-text="正在解析Excel..."
+      :element-loading-text="tableLoadingText"
     >
       <!-- 自适应表格容器：按容器宽度动态计算列宽与字号密度，保证任意缩放比下视觉稳定 -->
       <AdaptiveTableContainer
@@ -230,6 +252,11 @@ const props = defineProps({
   canRowOperate: {
     type: Boolean,
     default: false,
+  },
+  // 表格区域 loading 文案（Excel 解析 / 后端搜索共用 loading 态）
+  tableLoadingText: {
+    type: String,
+    default: '正在解析Excel...',
   },
 })
 
@@ -676,7 +703,20 @@ function onBatchDelete() {
 }
 
 function onResetSearch() {
+  // 未保存状态：锁定重置，提示用户先保存（与搜索/输入框控制逻辑保持一致）
+  if (guardRowOperation()) return
   emit('reset-search')
+}
+
+// 搜索输入框点击守卫：未保存状态下置灰只读，点击输入区域仅提示先保存
+function onSearchAreaClick() {
+  guardRowOperation()
+}
+
+function onSearchSubmit() {
+  // 未保存状态：锁定搜索，提示用户先保存（与行操作列保持一致的置灰 + 提示交互）
+  if (guardRowOperation()) return
+  emit('search-submit')
 }
 
 function onAddRow() {
@@ -725,7 +765,7 @@ function onSaveTable() {
 // 行操作前置守卫：未保存状态下点击编辑/删除/确认按钮，仅提示先保存，不执行实际操作
 function guardRowOperation() {
   if (!props.canRowOperate) {
-    ElMessage.info('请先点击保存，之后可以进行编辑')
+    ElMessage.info('请先点击保存，之后可以进行操作')
     return true
   }
   return false
@@ -817,8 +857,98 @@ function onClickImport() {
       }
     }
 
+    // 搜索输入框：尺寸/字体与 task-data 搜索框完全一致
     .aps-search-input {
-      width: 220px;
+      width: 280px;
+
+      :deep(.el-input__wrapper) {
+        height: 32px;
+        border-radius: 4px;
+      }
+
+      :deep(.el-input__suffix) {
+        .el-input__clear {
+          font-size: 16px;
+          color: #606266;
+          &:hover {
+            color: #303133;
+          }
+        }
+      }
+
+      // 放大镜图标：可点击触发搜索，样式与 task-data 一致
+      .search-icon {
+        font-size: 16px;
+        color: #606266;
+        cursor: pointer;
+        // 与清空按钮保持间距，避免两者紧贴
+        margin-left: 8px;
+        &:hover {
+          color: #004aa9;
+        }
+      }
+
+      // 输入框：未保存状态下置灰只读（与按钮的 is-locked 表现一致）
+      &.is-locked {
+        :deep(.el-input__wrapper) {
+          background-color: #f5f7fa;
+          box-shadow: 0 0 0 1px #e4e7ed inset;
+          cursor: not-allowed;
+        }
+
+        :deep(.el-input__inner) {
+          color: #c0c4cc;
+          cursor: not-allowed;
+        }
+
+        .search-icon {
+          cursor: not-allowed;
+          &:hover {
+            color: #606266;
+          }
+        }
+      }
+    }
+
+    // 搜索按钮：仅对齐尺寸/字号，颜色保持默认按钮外观（白底浅边框），不再填充主色
+    .aps-btn-search {
+      height: 32px;
+      padding: 0 18px;
+      font-size: 1rem;
+      border-radius: 4px;
+    }
+
+    // 重置按钮：与 task-data 重置按钮一致（浅色描边），间距仅由 flex gap 控制
+    .aps-btn-reset {
+      height: 32px;
+      padding: 0 18px;
+      font-size: 1rem;
+      border-radius: 4px;
+      margin-left: 0;
+      color: #606266;
+      border-color: #dcdfe6;
+      background: #fff;
+
+      &:hover {
+        color: #004aa9;
+        border-color: #004aa9;
+        background-color: #f4f7fc;
+      }
+    }
+
+    // 搜索/重置按钮：未保存状态下置灰禁用（与行操作列的 is-locked 表现一致），点击仅提示先保存
+    .aps-btn-search.is-locked,
+    .aps-btn-reset.is-locked {
+      color: #c0c4cc;
+      border-color: #e4e7ed;
+      background-color: #fff;
+      cursor: not-allowed;
+
+      &:hover {
+        color: #c0c4cc;
+        border-color: #e4e7ed;
+        background-color: #fff;
+      }
     }
   }
 

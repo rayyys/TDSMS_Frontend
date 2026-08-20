@@ -27,6 +27,8 @@ function createPlanState() {
     hasImported: false,
     selectedRows: [],
     searchQuery: '',
+    // 后端搜索（GET /aps/infoQuery）返回的结果；null 表示未处于搜索态（展示全量数据）
+    searchResults: null,
     tableLoading: false,
     // 保存过程中的加载态
     saving: false,
@@ -192,16 +194,12 @@ export function useApsArchive() {
     }),
   )
 
-  // 过滤后的表格数据（按品种/包装规格搜索）
+  // 展示给表格的数据：后端搜索（/aps/infoQuery）模式下展示接口返回的搜索结果，
+  // 否则展示全量表格数据（已保存方案来自后端明细，草稿来自本地解析）
   const filteredTableData = computed(() => {
-    const rows = planState.value.tableData
-    const keyword = (planState.value.searchQuery || '').trim()
-    if (!keyword) return rows
-    return rows.filter((row) => {
-      const product = String(row.product ?? '')
-      const packageSpec = String(row.packageSpec ?? '')
-      return product.includes(keyword) || packageSpec.includes(keyword)
-    })
+    const state = planState.value
+    if (state.searchResults) return state.searchResults
+    return state.tableData
   })
 
   // 行操作（编辑/删除）是否可用：仅「已保存且未被重新导入覆盖」时可操作。
@@ -376,6 +374,9 @@ export function useApsArchive() {
   // 禁止用户点击（如导入表格、保存等），避免查询过程中并发上传导致数据混乱
   const mainLoading = ref(false)
 
+  // 表格区域 loading 文案：Excel 解析与后端搜索共用 loading 态，按操作类型切换提示
+  const tableLoadingText = ref('正在解析Excel...')
+
   // 加载指定方案的明细数据（GET /aps/infoQuery）
   // 已加载过的方案不重复请求，保留会话内的本地编辑
   async function loadPlanDetail(plan) {
@@ -513,6 +514,7 @@ export function useApsArchive() {
     }
 
     const state = planState.value
+    tableLoadingText.value = '正在解析Excel...'
     state.tableLoading = true
     try {
       const parsed = await parseExcelFile(file)
@@ -537,6 +539,8 @@ export function useApsArchive() {
       state.needsSave = true
       state.newRowIndex = null
       clearEditingState(state)
+      // 数据已被新表格覆盖，清空旧数据的搜索态（保留关键字，用户可重新搜索）
+      state.searchResults = null
       if (rows.length === 0) {
         ElMessage.warning('Excel 中未解析到数据行，请检查模板')
       } else {
@@ -550,6 +554,16 @@ export function useApsArchive() {
       state.tableLoading = false
     }
   }
+
+  // 搜索关键字清空后（含点击输入框清除图标）同步退出搜索态，表格恢复展示全量数据
+  watch(
+    () => planState.value.searchQuery,
+    (keyword) => {
+      if (!keyword) {
+        planState.value.searchResults = null
+      }
+    },
+  )
 
   /**
    * 将 parseExcelFile 的结果转为表格行数据
@@ -869,9 +883,51 @@ export function useApsArchive() {
     }
   }
 
-  // 重置搜索
+  // 重置搜索：清空关键字与后端搜索结果，表格恢复展示全量数据
   function onResetSearch() {
-    planState.value.searchQuery = ''
+    const state = planState.value
+    state.searchQuery = ''
+    state.searchResults = null
+  }
+
+  // 搜索方案明细（GET /aps/infoQuery）：按关键字从后端查询已保存方案的明细数据
+  // 空关键字时不发起请求，直接清除搜索态；未保存方案由按钮置灰 + 提示兜底，此处仅作防御
+  async function onSearchSubmit() {
+    const state = planState.value
+    const activePlan = getActivePlan()
+    if (!isSavedArchive(activePlan)) return
+
+    const keyword = (state.searchQuery || '').trim()
+    if (!keyword) {
+      state.searchResults = null
+      return
+    }
+
+    tableLoadingText.value = '正在搜索...'
+    state.tableLoading = true
+    try {
+      const res = await getApsArchiveItems({ archiveId: Number(activePlan.id), keyword })
+      const result = res?.data
+      if (result?.success === false) {
+        ElMessage.error(result.message || '搜索失败')
+        return
+      }
+      // 竞态防护：请求期间关键字已变化（如用户再次搜索或重置），忽略本次过期响应
+      if ((state.searchQuery || '').trim() !== keyword) return
+      // 兼容 data 为 { records } 分页结构 / 直接为数组两种返回
+      const raw = result?.data ?? result
+      const records = Array.isArray(raw?.records) ? raw.records : Array.isArray(raw) ? raw : []
+      state.searchResults = records.map(mapItemToRow)
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 401) {
+        // 401 已在响应拦截器中统一处理（提示 + 跳转）
+      } else {
+        ElMessage.error(err?.response?.data?.message || err.message || '搜索失败')
+      }
+    } finally {
+      state.tableLoading = false
+    }
   }
 
   // 新增空行
@@ -998,6 +1054,8 @@ export function useApsArchive() {
       // 保存完成：解除未保存标记，恢复行操作（编辑/删除）权限
       state.needsSave = false
       clearEditingState(state)
+      // 保存后数据已入库，清空旧搜索态避免展示过期结果
+      state.searchResults = null
 
       ElMessage.success(`保存成功，共导入 ${data.dataCount ?? state.tableData.length} 条数据`)
     } catch (err) {
@@ -1222,9 +1280,11 @@ export function useApsArchive() {
     onCancelSelection,
     onBatchDelete,
     onResetSearch,
+    onSearchSubmit,
     onAddRow,
     onExportTable,
     onSaveTable,
+    tableLoadingText,
     // 行操作
     onEditRow,
     onCancelEdit,

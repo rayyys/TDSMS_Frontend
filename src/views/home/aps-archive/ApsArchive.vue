@@ -62,9 +62,11 @@
           v-model:plan-state="planState"
           :filtered-table-data="filteredTableData"
           :can-row-operate="canRowOperate"
+          :table-loading-text="tableLoadingText"
           @cancel-selection="onCancelSelection"
           @batch-delete="onBatchDelete"
           @reset-search="onResetSearch"
+          @search-submit="onSearchSubmit"
           @add-row="onAddRow"
           @export-table="onExportTable"
           @save-table="onSaveTable"
@@ -119,9 +121,11 @@ const {
   onCancelSelection,
   onBatchDelete,
   onResetSearch,
+  onSearchSubmit,
   onAddRow,
   onExportTable,
   onSaveTable,
+  tableLoadingText,
   // 行操作
   onEditRow,
   onCancelEdit,
