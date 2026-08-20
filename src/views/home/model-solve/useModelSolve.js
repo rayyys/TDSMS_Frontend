@@ -199,29 +199,46 @@ export function useModelSolve() {
       return
     }
 
+    // 点击停止后先置灰 loading，防止重复点击，直到整个流程结束
+    stoppingLoading.value = true
     try {
-      // 无可行解：弹窗确认
-      if (!schedulingStore.hasFeasibleSolution) {
+      // 立即查询一次最新求解状态，根据返回的 hasFinalResult / hasPartialResult 决定弹窗类型：
+      // hasFinalResult true → 已获得全局最优结果（兜底，基本不会发生）
+      // hasPartialResult true → 已搜索到方案；false → 尚未搜索到方案
+      const statusRes = await getSolveTaskApi({ solveTaskId })
+      const statusData = statusRes?.data?.data
+      const hasFinalResult = Boolean(statusData?.hasFinalResult)
+      const hasPartialResult = Boolean(statusData?.hasPartialResult)
+      if (statusData?.hasPartialResult !== undefined) {
+        schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
+      }
+      // 兜底：已获得全局最优结果时视为存在可行解，保证停止后仍可导出
+      if (hasFinalResult) {
+        schedulingStore.hasFeasibleSolution = true
+      }
+
+      if (hasFinalResult) {
+        // 兜底：已获得全局最优结果，确认停止并下载
+        await ElMessageBox.confirm(
+          '当前已获得全局最优结果。是否停止求解并下载当前方案？',
+          '停止确认',
+          {
+            type: 'warning',
+            confirmButtonText: '停止并下载',
+            cancelButtonText: '继续求解',
+            distinguishCancelAndClose: true,
+          },
+        )
+      } else if (!hasPartialResult) {
+        // 尚未搜索到方案：确认停止弹窗
         await ElMessageBox.confirm('当前尚未搜索到可行排产方案，确定取消本次求解吗？', '停止确认', {
           type: 'warning',
           confirmButtonText: '停止求解',
           cancelButtonText: '继续求解',
           distinguishCancelAndClose: true,
         })
-        // 先调停止接口，完成后再查询最新状态
-        await stopSolveApi({ solveTaskId })
-        const statusRes = await getSolveTaskApi({ solveTaskId })
-        const statusData = statusRes?.data?.data
-        if (statusData?.hasPartialResult !== undefined) {
-          schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
-        }
-        schedulingStore.stopSolve()
-        // ElMessage.warning('已停止，当前无可行解，不可导出')
-        return
-      }
-
-      // 有可行解但非最优：弹窗确认
-      if (!schedulingStore.isOptimal) {
+      } else {
+        // 已搜索到方案（非最优）：确认停止并下载弹窗
         await ElMessageBox.confirm(
           '当前已获得可行排程方案，但未获得全局最优结果。是否停止求解并下载当前最佳方案？',
           '停止确认',
@@ -232,34 +249,23 @@ export function useModelSolve() {
             distinguishCancelAndClose: true,
           },
         )
-        stoppingLoading.value = true
-        try {
-          // 先调停止接口，完成后再查询最新状态
-          await stopSolveApi({ solveTaskId })
-          const statusRes = await getSolveTaskApi({ solveTaskId })
-          const statusData = statusRes?.data?.data
-          if (statusData?.hasPartialResult !== undefined) {
-            schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
-          }
-          schedulingStore.stopSolve()
-          ElMessage.success('已停止，可导出当前结果')
-          // 自动触发导出
-          handleExport()
-        } finally {
-          stoppingLoading.value = false
-        }
-        return
       }
 
-      // 已是最优：不应出现（最优会自动停止），兜底处理
-      // 先调停止接口，完成后再查询最新状态
+      // 用户确认停止：先调停止接口，完成后再查询最新状态
       await stopSolveApi({ solveTaskId })
-      const statusRes = await getSolveTaskApi({ solveTaskId })
-      const statusData = statusRes?.data?.data
-      if (statusData?.hasPartialResult !== undefined) {
-        schedulingStore.hasFeasibleSolution = statusData.hasPartialResult
+      const statusResAfter = await getSolveTaskApi({ solveTaskId })
+      const statusDataAfter = statusResAfter?.data?.data
+      if (statusDataAfter?.hasPartialResult !== undefined) {
+        schedulingStore.hasFeasibleSolution = statusDataAfter.hasPartialResult
       }
       schedulingStore.stopSolve()
+
+      // 已搜索到方案（含全局最优兜底）时提示并自动触发导出
+      if (hasPartialResult || hasFinalResult) {
+        ElMessage.success('已停止，可导出当前结果')
+        // 自动触发导出
+        handleExport()
+      }
     } catch (e) {
       // 用户取消弹窗（点击"继续求解"或关闭），不做处理
       if (e === 'cancel' || e === 'close') return
@@ -275,6 +281,8 @@ export function useModelSolve() {
       } else {
         ElMessage.error(e?.response?.data?.message || e?.message || '停止求解失败')
       }
+    } finally {
+      stoppingLoading.value = false
     }
   }
 
