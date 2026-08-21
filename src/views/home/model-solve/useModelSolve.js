@@ -316,7 +316,8 @@ export function useModelSolve() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `可排产结果可视化${schedulingStore.fileName}`
+      // 下载文件名直接使用步骤一上传的原始文件名（用户从浏览器选择的文件名称）
+      a.download = `可排产结果可视化-${schedulingStore.uploadedFileName}`
       a.click()
       URL.revokeObjectURL(url)
       ElMessage.success('文件导出成功')

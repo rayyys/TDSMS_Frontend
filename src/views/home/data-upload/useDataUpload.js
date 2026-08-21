@@ -49,7 +49,10 @@ export function useDataUpload() {
       // 记录来源工作流页面，供档案页"新建任务"标签返回原页面
       schedulingStore.setApsOrigin(router.currentRoute.value.path)
       router.push('/aps-archive')
+      return
     }
+    // 记录当前求解流程所选用的档案方案 id，供模型构建页「前往APS排产信息档案」选中同一方案
+    schedulingStore.apsArchiveId = val
   }
 
   // 页面加载时确保方案列表已拉取（登录后已预拉取，此处复用 store 缓存，不会重复请求）
@@ -67,6 +70,8 @@ export function useDataUpload() {
       // 已保存方案从下拉框中消失则说明已被删除，给出提示
       const wasDraft = selected.startsWith('plan-')
       apsArchiveId.value = ''
+      // 选择失效时同步清空求解流程记录的档案 id，避免跳转档案页时选中已不存在的方案
+      schedulingStore.apsArchiveId = null
       if (!wasDraft) {
         ElMessage.warning('当前选择的 APS 方案已被删除，请重新选择')
       }

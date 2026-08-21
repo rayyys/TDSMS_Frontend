@@ -90,6 +90,9 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     apsOriginPath.value = path
     persistState()
   }
+  // 当前求解流程所选用的 APS 排产信息档案方案 id（来自数据上传页下拉选择），
+  // 供模型构建页「前往APS排产信息档案」跳转时选中同一方案
+  const apsArchiveId = ref(saved?.apsArchiveId ?? null)
 
   // —— 任务数据 ——
   // sheetDataMap: { [sheetName]: { columns, rows, annotated } }
@@ -254,6 +257,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
       solveStatus: solveStatus.value,
       solveInfo: solveInfo.value,
       apsOriginPath: apsOriginPath.value,
+      apsArchiveId: apsArchiveId.value,
       // 缓存"总运行时长"和"求解日志"数据，页面关闭后自动清空
       frontendPrefixLogs: frontendPrefixLogs.value,
       backendLogs: backendLogs.value,
@@ -717,6 +721,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     clearUploadedFile()
     clearSession()
     apsOriginPath.value = null
+    apsArchiveId.value = null
     solveStatus.value = 'idle'
     solveProgress.value = 0
     frontendPrefixLogs.value = []
@@ -902,6 +907,7 @@ export const useSchedulingStore = defineStore('scheduling', () => {
     // APS 档案页来源路径 / 返回上传页重置动作
     apsOriginPath,
     setApsOrigin,
+    apsArchiveId,
     backToUpload,
     // 重置
     resetSolveState,

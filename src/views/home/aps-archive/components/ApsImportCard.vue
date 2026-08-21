@@ -35,9 +35,9 @@
     <div class="aps-import-card-right">
       <div class="aps-import-tip-title">导入说明：</div>
       <ol class="aps-import-tip-list">
-        <li>请使用系统提供的模板进行填写</li>
-        <li>请勿修改模板中的表头字段</li>
-        <li>必填字段需完整填写</li>
+        <li>请使用系统提供的模板进行填写。</li>
+        <li>请勿修改模板中的表头字段。</li>
+        <li>必填字段需完整填写。</li>
       </ol>
     </div>
   </div>
@@ -168,7 +168,7 @@ function onDownloadTemplate() {
 
   .aps-import-card-right {
     flex-shrink: 0;
-    width: 300px;
+    width: 220px;
     padding: 16px;
     background: #f7f9fc;
     border-radius: 4px;

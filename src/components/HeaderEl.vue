@@ -14,12 +14,8 @@
           <span class="header-tab-label">新建任务</span>
           <span class="header-tab-underline"></span>
         </div>
-        <div
-          class="header-tab"
-          :class="{ active: isTabActive('aps') }"
-          @click="goToTab('aps')"
-        >
-          <span class="header-tab-label">APS排产信息档案</span>
+        <div class="header-tab" :class="{ active: isTabActive('aps') }" @click="goToTab('aps')">
+          <span class="header-tab-label">APS排程信息档案</span>
           <span class="header-tab-underline"></span>
         </div>
       </div>
@@ -49,7 +45,7 @@
           <el-icon><ArrowDown /></el-icon>
         </span>
         <!-- v-show 绑定 showMenu：点击头像切换显示，点击外部/菜单项后自动收起 -->
-        <div class="dropdown-menu" v-show="showMenu" @click.stop>
+        <div v-show="showMenu" class="dropdown-menu" @click.stop>
           <!-- 账号管理：管理员可见；开发调试开关开启时对所有人可见，便于联调 -->
           <div v-if="isAdminVisible" class="dropdown-item" @click="goToAccount">
             <el-icon><UserFilled /></el-icon>

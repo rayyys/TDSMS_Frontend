@@ -5,6 +5,13 @@
       <p class="page-desc">系统正在根据当前模型配置生成最优排产方案，请耐心等待...</p>
     </div>
 
+    <!-- 底部提示（蓝色信息条，告知导出注意事项） -->
+    <div class="info-alert">
+      <el-icon class="alert-icon"><InfoFilled /></el-icon>
+      <div class="alert-content">
+        请等待当前任务求解完成后导出排产结果。若中途退出或关闭页面，可能无法再次进入当前任务并获取求解结果。
+      </div>
+    </div>
     <div class="solve-layout">
       <!-- 上：求解状态（占满整行） -->
       <div class="solve-status">
@@ -221,13 +228,13 @@
       </div>
     </div>
 
-    <!-- 底部提示（蓝色信息条，告知导出注意事项） -->
+    <!-- 底部提示（蓝色信息条，告知导出注意事项）
     <div class="info-alert">
       <el-icon class="alert-icon"><InfoFilled /></el-icon>
       <div class="alert-content">
         请等待当前任务求解完成后导出排产结果。若中途退出或关闭页面，可能无法再次进入当前任务并获取求解结果。
       </div>
-    </div>
+    </div> -->
   </div>
 
   <div class="action-bar">

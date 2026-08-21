@@ -2,6 +2,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useSchedulingStore } from '@/stores/scheduling'
+import { useApsStore } from '@/stores/aps'
 import { useStepNav, STEP_ROUTES } from '../useStepNav'
 import { MODEL_BUILD_DEFAULTS, SHIFT_DAYS_FIXED } from './modelBuildDefaults'
 import {
@@ -16,6 +17,7 @@ import {
 export function useModelBuild() {
   const router = useRouter()
   const schedulingStore = useSchedulingStore()
+  const apsStore = useApsStore()
   const { handlePrev, handleNext, canNext, notifyNextDisabled } = useStepNav()
 
   // 求解中锁定模型构建页输入（仅 running 时锁定，stopped/done 可编辑）
@@ -484,6 +486,12 @@ export function useModelBuild() {
     closeMatchCheckDialog()
     // 记录来源工作流页面，供档案页"新建任务"标签返回原页面
     schedulingStore.setApsOrigin(router.currentRoute.value.path)
+    // 将档案页当前选中方案切换为本次求解所选用的档案方案（而非默认的最新创建方案），
+    // 保证跳转后展示与本地求解一致的信息方案
+    const solveArchiveId = schedulingStore.apsArchiveId
+    if (solveArchiveId && apsStore.planList.some((p) => p.id === solveArchiveId)) {
+      apsStore.selectPlan(solveArchiveId)
+    }
     router.push('/aps-archive')
   }
 

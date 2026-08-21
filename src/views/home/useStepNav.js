@@ -116,7 +116,7 @@ export function useStepNav() {
   async function handleBackToUpload() {
     try {
       await ElMessageBox.confirm(
-        '返回任务上传页面后,当前求解结果将不再显示。如需保留排程结果,建议先导出Excel文件。是否继续返回?',
+        '返回任务上传页面后，当前求解结果将不再显示。如需保留结果，请先点击页面右上角「停止求解」，再点击「导出结果」导出 Excel。 是否继续返回？',
         '返回任务上传页面',
         {
           type: 'warning',

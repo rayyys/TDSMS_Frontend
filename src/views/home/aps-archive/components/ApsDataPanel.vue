@@ -898,7 +898,8 @@ function onClickImport() {
     }
 
     .aps-remark-text {
-      flex: 1;
+      // 不拉伸占满剩余空间：宽度随备注内容自适应，使编辑按钮紧跟在文字右侧
+      flex: 0 1 auto;
       min-width: 0;
       font-size: 1rem;
       color: #606266;
@@ -912,12 +913,26 @@ function onClickImport() {
     }
 
     .aps-remark-input {
-      flex: 1;
+      // 编辑态：宽度随输入内容自适应，使保存按钮紧跟在输入框右侧
+      flex: 0 1 auto;
       min-width: 0;
+      width: auto;
+      display: inline-flex;
 
       :deep(.el-input__wrapper) {
         height: 32px;
         border-radius: 4px;
+        width: auto;
+        display: inline-flex;
+      }
+
+      :deep(.el-input__inner) {
+        // 输入框宽度随内容自适应；空内容时保持最小宽度，便于点击聚焦
+        width: auto;
+        flex: 1;
+        min-width: 6rem;
+        // 现代浏览器（Chrome 123+ / Edge 123+ / Firefox 128+ / Safari 18+）下输入框随内容伸缩
+        field-sizing: content;
       }
     }
 
@@ -925,6 +940,8 @@ function onClickImport() {
       flex-shrink: 0;
       font-size: 1rem;
       color: @brand-primary;
+      // 与备注文字保持 1rem 间距（父容器 gap 为 8px，故用 calc 修正）
+      margin-left: calc(1rem - 8px);
     }
   }
 

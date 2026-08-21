@@ -190,15 +190,12 @@
                     :min="0"
                     :step="1"
                     :precision="0"
-                    :controls="false"
+                    :controls="true"
+                    controls-position="right"
                     :disabled="isModelBuildLocked"
                     class="stable-input-number"
-                    style="padding-left: 12px"
-                  >
-                    <template #suffix>
-                      <span class="rule-unit">人</span>
-                    </template>
-                  </el-input-number>
+                  />
+                  <span class="rule-unit">人</span>
                 </div>
               </div>
             </div>
