@@ -651,7 +651,7 @@ export function useApsArchive() {
       const headerErrors = validateApsHeaders(parsed)
       if (headerErrors.length) {
         // 拦截不合规文件：明确提示首个问题所在，阻止进入已上传状态
-        ElMessage.error(`文件表头与模板不一致：${headerErrors[0]}`)
+        ElMessage.error(`表格文件内容格式与模板不一致`)
         return
       }
 
